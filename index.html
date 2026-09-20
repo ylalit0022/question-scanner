@@ -9,32 +9,606 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DocScanner">
-
   <title>DocScanner</title>
-  <link rel="manifest" href="manifest.webmanifest">
-
-  <!-- Cropper.js CSS (CDN — can be self-hosted for full offline) -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
-
-  <!-- Google Fonts (optional — app has system fallbacks) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+  <style>
+/* ── Tokens ─────────────────────────────────────────────── */
+:root {
+  --navy:        #111827;
+  --navy-mid:    #1a2537;
+  --navy-light:  #243044;
+  --teal:        #00C9A7;
+  --teal-dim:    #009B82;
+  --amber:       #E8A838;
+  --slate:       #8B9BB4;
+  --off-white:   #F0EFEB;
+  --white:       #FFFFFF;
+  --danger:      #E85858;
+  --surface:     #1e2d42;
+  --surface-2:   #253448;
+  --border:      rgba(139,155,180,.18);
+  --shadow:      0 4px 24px rgba(0,0,0,.45);
+  --font-ui:     'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono:   'IBM Plex Mono', 'Courier New', monospace;
+  --radius-sm:   6px;
+  --radius:      10px;
+  --radius-lg:   16px;
+  --transition:  160ms ease;
+}
 
-  <!-- App stylesheet -->
-  <link rel="stylesheet" href="css/style.css">
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: var(--font-ui);
+  background: var(--navy);
+  color: var(--off-white);
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--navy); }
+::-webkit-scrollbar-thumb { background: var(--navy-light); border-radius: 2px; }
+
+/* ── App Shell ─────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  max-width: 540px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ── Header ────────────────────────────────────────────── */
+#app-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--navy-mid);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -.02em;
+  color: var(--off-white);
+  text-decoration: none;
+  cursor: pointer;
+}
+.header-logo span em { color: var(--teal); font-style: normal; }
+
+.header-actions { display: flex; align-items: center; gap: 6px; }
+
+/* ── Bottom Nav ────────────────────────────────────────── */
+#bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 540px;
+  background: var(--navy-mid);
+  border-top: 1px solid var(--border);
+  display: flex;
+  z-index: 100;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--slate);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 500;
+  transition: color var(--transition);
+  position: relative;
+}
+.nav-btn::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 25%; right: 25%;
+  height: 2px;
+  background: var(--teal);
+  border-radius: 0 0 2px 2px;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+.nav-btn.active { color: var(--teal); }
+.nav-btn.active::after { opacity: 1; }
+
+/* ── Main Content ──────────────────────────────────────── */
+#main-content {
+  flex: 1;
+  padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Screens ───────────────────────────────────────────── */
+.screen { display: none; padding: 20px 16px; animation: fadeIn 200ms ease; }
+.screen.active { display: block; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Section Headers ───────────────────────────────────── */
+.section-header { margin-bottom: 20px; }
+.section-title { font-size: 22px; font-weight: 600; letter-spacing: -.02em; color: var(--off-white); line-height: 1.2; }
+.section-sub { margin-top: 4px; font-size: 13px; color: var(--slate); line-height: 1.5; }
+
+/* ── Buttons ───────────────────────────────────────────── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 20px;
+  border: none;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+  text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+.btn-primary { background: var(--teal); color: var(--navy); }
+.btn-primary:hover { background: #00DDB8; }
+.btn-primary:active { transform: scale(.97); background: var(--teal-dim); }
+.btn-secondary { background: var(--surface-2); color: var(--off-white); border: 1px solid var(--border); }
+.btn-secondary:hover { background: #2e4060; border-color: var(--slate); }
+.btn-secondary:active { transform: scale(.97); }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
+.btn-danger:hover { background: var(--danger); color: var(--white); }
+.btn-icon {
+  padding: 9px;
+  background: var(--surface-2);
+  color: var(--slate);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  min-width: 38px;
+  min-height: 38px;
+}
+.btn-icon:hover { color: var(--off-white); border-color: var(--slate); }
+.btn-full { width: 100%; }
+.btn-sm { padding: 8px 14px; font-size: 13px; }
+.btn-lg { padding: 15px 24px; font-size: 15px; font-weight: 600; }
+
+/* ── Cards ─────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+/* ── Form Elements ─────────────────────────────────────── */
+.form-group { margin-bottom: 16px; }
+label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .06em;
+  color: var(--slate);
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+input[type="text"],
+input[type="number"],
+textarea,
+select {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 13px;
+  color: var(--off-white);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  transition: border-color var(--transition);
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(0,201,167,.12);
+}
+textarea { resize: vertical; min-height: 90px; line-height: 1.6; }
+select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238B9BB4' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 34px;
+}
+
+/* ── Badge ─────────────────────────────────────────────── */
+.badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 9px; border-radius: 100px;
+  font-size: 11px; font-weight: 500; font-family: var(--font-mono);
+}
+.badge-teal   { background: rgba(0,201,167,.15);   color: var(--teal); }
+.badge-amber  { background: rgba(232,168,56,.15);  color: var(--amber); }
+.badge-slate  { background: rgba(139,155,180,.12); color: var(--slate); }
+.badge-danger { background: rgba(232,88,88,.15);   color: var(--danger); }
+
+/* ── Divider ───────────────────────────────────────────── */
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* ── Empty State ───────────────────────────────────────── */
+.empty-state { text-align: center; padding: 52px 24px; color: var(--slate); }
+.empty-state svg { margin: 0 auto 16px; opacity: .3; }
+.empty-state p { font-size: 14px; line-height: 1.6; }
+.empty-state strong { display: block; font-size: 17px; font-weight: 600; color: var(--off-white); margin-bottom: 6px; opacity: .75; }
+
+/* ── Toast ─────────────────────────────────────────────── */
+#toast-container {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 32px);
+  max-width: 400px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--navy-mid);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 16px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow);
+  animation: toastIn 220ms cubic-bezier(.34,1.56,.64,1);
+  pointer-events: auto;
+  width: 100%;
+}
+.toast-success { border-left: 3px solid var(--teal); }
+.toast-error   { border-left: 3px solid var(--danger); }
+.toast-info    { border-left: 3px solid var(--amber); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(12px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Modal ─────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,10,20,.8);
+  backdrop-filter: blur(6px);
+  z-index: 300;
+  display: flex; align-items: flex-end; padding: 12px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 200ms ease;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  width: 100%; max-width: 540px;
+  margin: 0 auto; padding: 22px;
+  transform: translateY(24px);
+  transition: transform 220ms cubic-bezier(.34,1.56,.64,1);
+  max-height: 92dvh; overflow-y: auto;
+}
+.modal-overlay.open .modal { transform: translateY(0); }
+.modal-title {
+  font-size: 18px; font-weight: 600; margin-bottom: 16px;
+  padding-right: 32px; position: relative;
+}
+.modal-close {
+  position: absolute; top: -2px; right: -2px;
+  background: none; border: none; color: var(--slate);
+  cursor: pointer; padding: 4px; border-radius: var(--radius-sm);
+}
+.modal-close:hover { color: var(--off-white); }
+.modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+
+/* ── Privacy Banner ────────────────────────────────────── */
+.privacy-banner {
+  background: rgba(0,201,167,.06);
+  border: 1px solid rgba(0,201,167,.2);
+  border-radius: var(--radius);
+  padding: 11px 14px;
+  margin-bottom: 20px;
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 12px; color: var(--slate); line-height: 1.5;
+}
+.privacy-banner svg { flex-shrink: 0; margin-top: 1px; color: var(--teal); }
+
+/* ── Project Cards ─────────────────────────────────────── */
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+  display: flex; align-items: center; gap: 14px;
+  -webkit-user-select: none; user-select: none;
+}
+.project-card:hover { border-color: rgba(0,201,167,.4); background: var(--surface-2); }
+.project-card:active { transform: scale(.99); }
+.project-card-icon {
+  width: 46px; height: 46px;
+  border-radius: var(--radius);
+  background: rgba(0,201,167,.1);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: var(--teal);
+}
+.project-card-body { flex: 1; min-width: 0; }
+.project-card-name { font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.project-card-meta { margin-top: 3px; font-size: 12px; color: var(--slate); font-family: var(--font-mono); display: flex; gap: 10px; }
+.project-card-arrow { color: var(--slate); flex-shrink: 0; }
+
+/* ── Capture Screen ────────────────────────────────────── */
+/* Camera / Gallery choice buttons */
+.capture-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.capture-method-btn {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex; flex-direction: column;
+  align-items: center; gap: 10px;
+  color: var(--off-white);
+  font-family: var(--font-ui);
+  font-size: 14px; font-weight: 500;
+  position: relative;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+.capture-method-btn input[type="file"] {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  opacity: 0; cursor: pointer;
+  font-size: 0;
+}
+.capture-method-btn:hover {
+  border-color: var(--teal);
+  background: rgba(0,201,167,.06);
+}
+.capture-method-btn:active { transform: scale(.97); }
+.capture-method-btn .method-icon { color: var(--teal); }
+.capture-method-btn .method-hint { font-size: 11px; color: var(--slate); margin-top: -4px; }
+
+/* Drop zone (drag and drop for desktop) */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  text-align: center;
+  margin-bottom: 16px;
+  transition: all var(--transition);
+  font-size: 13px; color: var(--slate);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.drop-zone.drag-over {
+  border-color: var(--teal);
+  background: rgba(0,201,167,.06);
+  color: var(--teal);
+}
+
+/* Cropper container — FIXED VISIBILITY */
+#cropper-section {
+  display: none;
+}
+#cropper-section.visible {
+  display: block;
+}
+
+#cropper-container {
+  position: relative;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 12px;
+  /* CRITICAL: min-height so cropper renders on mobile */
+  min-height: 300px;
+  max-height: 65vh;
+  width: 100%;
+}
+#crop-image {
+  display: block;
+  max-width: 100%;
+  /* prevent tiny render */
+  min-height: 200px;
+  width: 100%;
+  object-fit: contain;
+}
+
+/* Override cropper.js default styles for better mobile visibility */
+.cropper-view-box,
+.cropper-face {
+  border-radius: 0 !important;
+}
+.cropper-line { background-color: var(--teal) !important; opacity: 1 !important; }
+.cropper-point { background-color: var(--teal) !important; opacity: 1 !important; width: 10px !important; height: 10px !important; }
+.cropper-point.point-se,
+.cropper-point.point-nw,
+.cropper-point.point-ne,
+.cropper-point.point-sw { width: 14px !important; height: 14px !important; }
+.cropper-dashed { border-color: rgba(0,201,167,.5) !important; }
+.cropper-modal { background: rgba(0,0,0,.65) !important; }
+.cropper-view-box { outline: 2px solid var(--teal) !important; outline-color: var(--teal) !important; }
+
+/* Crop controls */
+.crop-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.crop-toolbar .btn { flex: 1; min-width: 70px; }
+
+.crop-save-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* ── Questions Screen ──────────────────────────────────── */
+.question-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 13px 14px;
+  margin-bottom: 8px;
+  display: flex; align-items: flex-start; gap: 10px;
+  transition: border-color var(--transition);
+}
+.question-item.sortable-ghost { opacity: .35; background: var(--surface-2); }
+.question-item.sortable-chosen { border-color: var(--teal); box-shadow: var(--shadow); }
+.drag-handle { color: var(--slate); cursor: grab; padding: 2px 4px; margin-top: 2px; flex-shrink: 0; }
+.drag-handle:active { cursor: grabbing; }
+.question-body { flex: 1; min-width: 0; }
+.question-num { font-size: 11px; font-family: var(--font-mono); color: var(--teal); margin-bottom: 4px; }
+.question-text { font-size: 14px; font-weight: 500; line-height: 1.45; word-break: break-word; }
+.question-thumb {
+  width: 56px; height: 56px;
+  border-radius: var(--radius-sm);
+  object-fit: cover; flex-shrink: 0;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+.question-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* Reorder hint */
+.reorder-hint {
+  text-align: center; font-size: 12px; color: var(--slate);
+  padding: 6px 8px; display: flex; align-items: center;
+  justify-content: center; gap: 6px; margin-bottom: 10px;
+}
+
+/* ── PDF Screen ────────────────────────────────────────── */
+.pdf-preview-box {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden; margin-bottom: 16px;
+  aspect-ratio: 210 / 297;
+  background: var(--white);
+  display: flex; align-items: center; justify-content: center;
+  max-height: 300px;
+}
+.pdf-preview-inner { width: 100%; height: 100%; display: flex; flex-direction: column; padding: 10px; gap: 5px; }
+.pdf-preview-title { font-size: 8px; color: #222; font-weight: 700; text-align: center; border-bottom: 1px solid #ddd; padding-bottom: 4px; font-family: sans-serif; }
+.pdf-preview-row { display: flex; gap: 5px; align-items: flex-start; }
+.pdf-preview-num { font-size: 6px; color: #444; width: 12px; flex-shrink: 0; font-family: monospace; }
+.pdf-preview-line { flex: 1; height: 1px; background: #eee; margin-top: 3px; }
+.pdf-preview-img-box { width: 28px; height: 22px; background: #eee; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Loading / Spinner ─────────────────────────────────── */
+.spinner {
+  width: 26px; height: 26px;
+  border: 2.5px solid var(--border);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin 600ms linear infinite;
+  margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,10,20,.85);
+  z-index: 400; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px; font-size: 14px; color: var(--slate);
+}
+
+/* ── Image Zoom Modal ──────────────────────────────────── */
+#modal-zoom .modal-overlay-inner {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,.92);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 200ms ease;
+}
+#modal-zoom.open .modal-overlay-inner { opacity: 1; pointer-events: all; }
+#zoom-img { max-width: 100%; max-height: 80dvh; border-radius: var(--radius); display: block; }
+#btn-close-zoom {
+  position: fixed; top: 16px; right: 16px; z-index: 501;
+  background: rgba(255,255,255,.12); border: none;
+  border-radius: 50%; width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: white; font-size: 20px;
+}
+
+/* ── Checkbox Toggle Style ─────────────────────────────── */
+.toggle-row {
+  display: flex; align-items: center;
+  justify-content: space-between; margin-bottom: 12px;
+}
+.toggle-row label { margin: 0; font-family: var(--font-ui); font-size: 14px; color: var(--off-white); letter-spacing: 0; text-transform: none; }
+input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; accent-color: var(--teal); flex-shrink: 0; }
+
+/* ── Card section title ────────────────────────────────── */
+.card-section-title {
+  font-size: 11px; font-weight: 600; margin-bottom: 14px;
+  color: var(--slate); font-family: var(--font-mono);
+  letter-spacing: .06em; text-transform: uppercase;
+}
+
+@media (min-width: 480px) {
+  .section-title { font-size: 24px; }
+  .modal-actions { justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+  </style>
 </head>
 <body>
-
-<!-- ══════════════════════════════════════════════════════════
-     APP SHELL
-     ══════════════════════════════════════════════════════════ -->
 <div id="app">
-
-  <!-- ── Header ──────────────────────────────────────────── -->
   <header id="app-header">
-    <a href="#" class="header-logo" id="btn-home-logo" onclick="return false;">
-      <!-- Doc icon -->
+    <div class="header-logo" id="btn-home-logo">
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
@@ -43,10 +617,10 @@
         <polyline points="10 9 9 9 8 9"/>
       </svg>
       <span>Doc<em>Scanner</em></span>
-    </a>
-    <span id="header-project-name" style="display:none; font-size:13px; color:var(--slate); max-width:160px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span>
+    </div>
+    <span id="header-project-name" style="display:none;font-size:13px;color:var(--slate);max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;text-align:center;"></span>
     <div class="header-actions">
-      <button class="btn btn-icon" id="btn-home-logo-back" title="All projects">
+      <button class="btn btn-icon" id="btn-header-back" title="All projects" style="display:none;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="15 18 9 12 15 6"/>
         </svg>
@@ -54,434 +628,1281 @@
     </div>
   </header>
 
-  <!-- ── Main Content ─────────────────────────────────────── -->
   <main id="main-content">
 
-    <!-- ════════════════════════════════════════════════════
-         SCREEN: HOME
-         ════════════════════════════════════════════════════ -->
+    <!-- HOME -->
     <section id="screen-home" class="screen active">
-
       <div class="privacy-banner">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
-        <span>Photos are processed and stored <strong>locally in your browser</strong>. Nothing is uploaded to any server.</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span>Photos stored <strong>locally in your browser only</strong>. Nothing uploaded anywhere.</span>
       </div>
-
       <div class="section-header">
         <div class="section-title">Projects</div>
         <div class="section-sub">Each project holds a set of scanned questions.</div>
       </div>
-
       <button class="btn btn-primary btn-full" id="btn-new-project" style="margin-bottom:20px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         New Project
       </button>
-
       <div id="project-list"></div>
-
-      <p style="text-align:center;font-size:11px;color:var(--slate);margin-top:24px;line-height:1.6;">
-        Long-press a project card to delete it.<br>
-        Requires HTTPS or localhost for camera access.
+      <p style="text-align:center;font-size:11px;color:var(--slate);margin-top:24px;line-height:1.7;">
+        Long-press a project card to delete it.<br>Camera needs HTTPS or localhost.
       </p>
     </section>
 
-    <!-- ════════════════════════════════════════════════════
-         SCREEN: QUESTIONS
-         ════════════════════════════════════════════════════ -->
+    <!-- QUESTIONS -->
     <section id="screen-questions" class="screen">
-
       <div class="section-header">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div class="section-title">Questions</div>
-          <span id="questions-count" class="badge badge-slate">0 questions</span>
+          <span id="questions-count" class="badge badge-slate">0</span>
         </div>
-        <div class="section-sub">Drag the handle to reorder. Tap the pencil to edit.</div>
+        <div class="section-sub">Drag to reorder · Tap pencil to edit</div>
       </div>
-
       <div class="reorder-hint">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
-          <polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/>
-          <line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/>
-        </svg>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
         Hold the ≡ handle and drag to reorder
       </div>
-
       <div id="questions-list"></div>
-
       <button class="btn btn-primary btn-full" id="btn-add-question" style="margin-top:12px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Question
       </button>
     </section>
 
-    <!-- ════════════════════════════════════════════════════
-         SCREEN: CAPTURE / CROP
-         ════════════════════════════════════════════════════ -->
+    <!-- CAPTURE -->
     <section id="screen-capture" class="screen">
-
       <div class="section-header">
         <div class="section-title">Capture &amp; Crop</div>
-        <div class="section-sub">Take a photo or upload an image of a question, then crop it precisely.</div>
+        <div class="section-sub">Use camera or pick from gallery, then crop the question.</div>
       </div>
 
-      <!-- Drop / capture zone -->
-      <div class="capture-zone" id="capture-zone">
-        <input type="file" id="file-input" accept="image/*" capture="environment">
-        <div class="capture-icon">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-            <circle cx="12" cy="13" r="4"/>
-          </svg>
+      <!-- Source selection — visible when no image loaded -->
+      <div id="capture-source-panel">
+        <div class="capture-methods">
+          <!-- Camera button -->
+          <button class="capture-method-btn" id="btn-open-camera" title="Open camera">
+            <div class="method-icon">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </div>
+            <span>Camera</span>
+            <span class="method-hint">Take photo</span>
+            <input type="file" id="file-camera" accept="image/*" capture="environment">
+          </button>
+          <!-- Gallery button -->
+          <button class="capture-method-btn" id="btn-open-gallery" title="Upload from gallery">
+            <div class="method-icon">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </div>
+            <span>Gallery</span>
+            <span class="method-hint">Pick image</span>
+            <input type="file" id="file-gallery" accept="image/*">
+          </button>
         </div>
-        <div class="capture-label">Take photo or upload image</div>
-        <div class="capture-hint">JPEG, PNG, WebP · Camera or gallery</div>
+
+        <!-- Drag and drop (desktop) -->
+        <div class="drop-zone" id="drop-zone">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          Drop image here (desktop)
+        </div>
       </div>
 
-      <!-- Cropper.js container (hidden until image loaded) -->
-      <div id="cropper-wrapper" style="display:none;">
+      <!-- Cropper — visible after image loaded -->
+      <div id="cropper-section">
         <div id="cropper-container">
-          <img id="crop-image" alt="Image to crop" style="max-width:100%;display:block;">
+          <img id="crop-image" alt="Image to crop">
         </div>
-      </div>
 
-      <!-- Crop tool controls -->
-      <div id="crop-controls" style="display:none;" class="cropper-actions">
-        <button class="btn btn-secondary btn-sm" id="btn-rotate-ccw" title="Rotate left">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="1 4 1 10 7 10"/>
-            <path d="M3.51 15a9 9 0 1 0 .49-4"/>
-          </svg>
-          ↺
-        </button>
-        <button class="btn btn-secondary btn-sm" id="btn-rotate-cw" title="Rotate right">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 4 23 10 17 10"/>
-            <path d="M20.49 15a9 9 0 1 1-.49-4"/>
-          </svg>
-          ↻
-        </button>
-        <button class="btn btn-secondary btn-sm" id="btn-flip-h" title="Flip horizontal">⇄</button>
-        <button class="btn btn-secondary btn-sm" id="btn-flip-v" title="Flip vertical">⇅</button>
-        <button class="btn btn-secondary btn-sm" id="btn-crop-reset" title="Reset crop">Reset</button>
-      </div>
+        <!-- Tool buttons -->
+        <div class="crop-toolbar">
+          <button class="btn btn-secondary btn-sm" id="btn-rotate-ccw" title="Rotate CCW">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.67"/></svg>
+            Rotate L
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btn-rotate-cw" title="Rotate CW">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.49-3.67"/></svg>
+            Rotate R
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btn-flip-h">⇄ Flip</button>
+          <button class="btn btn-secondary btn-sm" id="btn-crop-reset">Reset</button>
+          <button class="btn btn-secondary btn-sm" id="btn-change-image">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.67"/></svg>
+            New Image
+          </button>
+        </div>
 
-      <!-- Save / cancel -->
-      <div id="crop-save-row" style="display:none;gap:10px;">
-        <button class="btn btn-secondary" id="btn-cancel-crop" style="flex:1;">Cancel</button>
-        <button class="btn btn-primary" id="btn-save-crop" style="flex:2;">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <polyline points="20 6 9 17 4 12"/>
-          </svg>
-          Save Question
-        </button>
+        <!-- Save / Cancel -->
+        <div class="crop-save-row">
+          <button class="btn btn-secondary" id="btn-cancel-crop" style="flex:1;">Cancel</button>
+          <button class="btn btn-primary" id="btn-save-crop" style="flex:2;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Save Question
+          </button>
+        </div>
       </div>
     </section>
 
-    <!-- ════════════════════════════════════════════════════
-         SCREEN: PDF SETTINGS
-         ════════════════════════════════════════════════════ -->
+    <!-- PDF -->
     <section id="screen-pdf" class="screen">
-
       <div class="section-header">
         <div class="section-title">Export PDF</div>
-        <div class="section-sub">Configure the output and download a PDF. Generated entirely in your browser.</div>
+        <div class="section-sub">Configure and download. Generated entirely in your browser.</div>
       </div>
-
-      <!-- Live preview -->
       <div class="pdf-preview-box">
         <div class="pdf-preview-inner" id="pdf-preview-content">
           <div class="pdf-preview-title">Preview</div>
         </div>
       </div>
-
-      <!-- Settings form -->
       <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">PAGE</div>
-
+        <div class="card-section-title">Page</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group" style="margin-bottom:0">
-            <label for="pdf-page-size">SIZE</label>
-            <select id="pdf-page-size">
-              <option value="A4">A4</option>
-              <option value="A3">A3</option>
-              <option value="letter">US Letter</option>
-              <option value="legal">US Legal</option>
-            </select>
+            <label for="pdf-page-size">Size</label>
+            <select id="pdf-page-size"><option value="A4">A4</option><option value="A3">A3</option><option value="letter">US Letter</option><option value="legal">US Legal</option></select>
           </div>
           <div class="form-group" style="margin-bottom:0">
-            <label for="pdf-orientation">ORIENTATION</label>
-            <select id="pdf-orientation">
-              <option value="portrait">Portrait</option>
-              <option value="landscape">Landscape</option>
-            </select>
+            <label for="pdf-orientation">Orientation</label>
+            <select id="pdf-orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
           </div>
         </div>
-
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
           <div class="form-group" style="margin-bottom:0">
-            <label for="pdf-font-size">FONT SIZE (pt)</label>
+            <label for="pdf-font-size">Font size (pt)</label>
             <input type="number" id="pdf-font-size" min="8" max="18" value="12" step="1">
           </div>
           <div class="form-group" style="margin-bottom:0">
-            <label for="pdf-margin">MARGIN (mm)</label>
+            <label for="pdf-margin">Margin (mm)</label>
             <input type="number" id="pdf-margin" min="5" max="40" value="15" step="1">
           </div>
         </div>
       </div>
-
       <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">IMAGES</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <label for="pdf-include-images" style="margin:0;font-family:var(--font-ui);font-size:14px;color:var(--off-white);letter-spacing:0;">Include scanned images</label>
-          <input type="checkbox" id="pdf-include-images" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--teal);">
+        <div class="card-section-title">Images</div>
+        <div class="toggle-row">
+          <label for="pdf-include-images">Include scanned images</label>
+          <input type="checkbox" id="pdf-include-images" checked>
         </div>
-
         <div class="form-group" style="margin-bottom:0">
-          <label for="pdf-image-size">IMAGE SIZE</label>
-          <select id="pdf-image-size">
-            <option value="small">Small (35mm)</option>
-            <option value="medium" selected>Medium (55mm)</option>
-            <option value="large">Large (75mm)</option>
-            <option value="full">Full width</option>
-          </select>
+          <label for="pdf-image-size">Image size</label>
+          <select id="pdf-image-size"><option value="small">Small (35mm)</option><option value="medium" selected>Medium (55mm)</option><option value="large">Large (75mm)</option><option value="full">Full width</option></select>
         </div>
       </div>
-
       <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">QUESTIONS</div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <label for="pdf-show-numbers" style="margin:0;font-family:var(--font-ui);font-size:14px;color:var(--off-white);letter-spacing:0;">Number questions</label>
-          <input type="checkbox" id="pdf-show-numbers" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--teal);">
+        <div class="card-section-title">Questions</div>
+        <div class="toggle-row">
+          <label for="pdf-show-numbers">Number questions</label>
+          <input type="checkbox" id="pdf-show-numbers" checked>
         </div>
-
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <label for="pdf-show-answers" style="margin:0;font-family:var(--font-ui);font-size:14px;color:var(--off-white);letter-spacing:0;">Include answer lines</label>
-          <input type="checkbox" id="pdf-show-answers" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--teal);">
+        <div class="toggle-row">
+          <label for="pdf-show-answers">Include answer lines</label>
+          <input type="checkbox" id="pdf-show-answers" checked>
         </div>
-
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group" style="margin-bottom:0">
-            <label for="pdf-answer-lines">ANSWER LINES</label>
+            <label for="pdf-answer-lines">Answer lines</label>
             <input type="number" id="pdf-answer-lines" min="1" max="10" value="3" step="1">
           </div>
           <div class="form-group" style="margin-bottom:0">
-            <label for="pdf-line-spacing">LINE SPACING</label>
-            <select id="pdf-line-spacing">
-              <option value="compact">Compact</option>
-              <option value="normal" selected>Normal</option>
-              <option value="spacious">Spacious</option>
-            </select>
+            <label for="pdf-line-spacing">Line spacing</label>
+            <select id="pdf-line-spacing"><option value="compact">Compact</option><option value="normal" selected>Normal</option><option value="spacious">Spacious</option></select>
           </div>
         </div>
       </div>
-
       <div class="card">
-        <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">HEADER &amp; FOOTER</div>
-
+        <div class="card-section-title">Header &amp; Footer</div>
         <div class="form-group">
-          <label for="pdf-header">HEADER TEXT</label>
+          <label for="pdf-header">Header text</label>
           <input type="text" id="pdf-header" placeholder="e.g. School name, exam title…" maxlength="120">
         </div>
-        <div class="form-group" style="margin-bottom:0;">
-          <label for="pdf-footer">FOOTER TEXT</label>
+        <div class="form-group" style="margin-bottom:0">
+          <label for="pdf-footer">Footer text</label>
           <input type="text" id="pdf-footer" placeholder="e.g. Confidential, instructions…" maxlength="120">
         </div>
       </div>
-
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
         <span id="pdf-question-count" class="badge badge-teal">0</span>
         <span style="font-size:13px;color:var(--slate);">questions will be exported</span>
       </div>
-
       <button class="btn btn-primary btn-full btn-lg" id="btn-generate-pdf">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        Generate &amp; Download PDF
+      </button>
+      <p style="text-align:center;font-size:11px;color:var(--slate);margin-top:14px;line-height:1.6;">
+        PDF is generated in your browser via jsPDF. No data uploaded.
+      </p>
+    </section>
+
+  </main>
+
+  <nav id="bottom-nav">
+    <button class="nav-btn active" data-screen="home">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Projects
+    </button>
+    <button class="nav-btn" data-screen="capture">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      Capture
+    </button>
+    <button class="nav-btn" data-screen="questions">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Questions
+    </button>
+    <button class="nav-btn" data-screen="pdf">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      Export
+    </button>
+  </nav>
+</div>
+
+<!-- Modals -->
+<div id="modal-project" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">New Project
+      <button class="modal-close" data-modal-close="modal-project"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="form-group">
+      <label for="input-project-name">Project name</label>
+      <input type="text" id="input-project-name" placeholder="e.g. Physics Paper 2 · Mock Exam 2026" maxlength="80">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" data-modal-close="modal-project">Cancel</button>
+      <button class="btn btn-primary" id="btn-create-project">Create Project</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-question-text" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">Question Text
+      <button class="modal-close" data-modal-close="modal-question-text"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <p style="font-size:13px;color:var(--slate);margin-bottom:14px;line-height:1.5;">Type or paste the question text — shown in PDF alongside the image.</p>
+    <div class="form-group">
+      <label for="input-question-text">Question</label>
+      <textarea id="input-question-text" placeholder="e.g. Describe the process of photosynthesis…" rows="4" maxlength="1000"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" data-modal-close="modal-question-text">Cancel</button>
+      <button class="btn btn-primary" id="btn-confirm-save-question">Save Question</button>
+    </div>
+  </div>
+</div>
+
+<div id="modal-confirm" class="modal-overlay">
+  <div class="modal">
+    <div class="modal-title">Confirm
+      <button class="modal-close" data-modal-close="modal-confirm"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <p id="confirm-message" style="font-size:14px;color:var(--slate);line-height:1.6;"></p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" data-modal-close="modal-confirm">Cancel</button>
+      <button class="btn btn-danger" id="btn-confirm-action">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Image Zoom -->
+<div id="modal-zoom" style="display:none;">
+  <div style="position:fixed;inset:0;z-index:600;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;padding:20px;" id="zoom-backdrop">
+    <img id="zoom-img" src="" alt="Full size question" style="max-width:100%;max-height:80dvh;border-radius:10px;display:block;">
+    <button id="btn-close-zoom" style="position:fixed;top:16px;right:16px;background:rgba(255,255,255,.15);border:none;border-radius:50%;width:42px;height:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:white;font-size:22px;line-height:1;">✕</button>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════
+// DB — IndexedDB wrapper (no ES module needed, plain script)
+// ════════════════════════════════════════════════════════
+const DB_NAME    = 'DocScannerDB';
+const DB_VERSION = 1;
+let _db = null;
+
+function openDB() {
+  if (_db) return Promise.resolve(_db);
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('projects')) {
+        const ps = db.createObjectStore('projects', { keyPath: 'id' });
+        ps.createIndex('updatedAt', 'updatedAt', { unique: false });
+      }
+      if (!db.objectStoreNames.contains('questions')) {
+        const qs = db.createObjectStore('questions', { keyPath: 'id' });
+        qs.createIndex('projectId', 'projectId', { unique: false });
+        qs.createIndex('order',     'order',     { unique: false });
+      }
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'projectId' });
+      }
+    };
+    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function tx(storeName, mode = 'readonly') {
+  return _db.transaction(storeName, mode).objectStore(storeName);
+}
+function promReq(req) {
+  return new Promise((res, rej) => {
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+async function saveProject(project) {
+  await openDB();
+  project.updatedAt = Date.now();
+  return promReq(tx('projects', 'readwrite').put(project));
+}
+async function getProject(id) { await openDB(); return promReq(tx('projects').get(id)); }
+async function getAllProjects() { await openDB(); return promReq(tx('projects').getAll()); }
+async function deleteProject(id) {
+  await openDB();
+  const questions = await getQuestionsForProject(id);
+  const qtx = _db.transaction('questions', 'readwrite').objectStore('questions');
+  for (const q of questions) qtx.delete(q.id);
+  const stx = _db.transaction('settings', 'readwrite').objectStore('settings');
+  stx.delete(id);
+  return promReq(tx('projects', 'readwrite').delete(id));
+}
+async function saveQuestion(question) {
+  await openDB();
+  if (!question.id) question.id = crypto.randomUUID();
+  if (question.order === undefined) question.order = Date.now();
+  return promReq(tx('questions', 'readwrite').put(question));
+}
+async function getQuestion(id) { await openDB(); return promReq(tx('questions').get(id)); }
+async function getQuestionsForProject(projectId) {
+  await openDB();
+  const all = await promReq(tx('questions').index('projectId').getAll(projectId));
+  return all.sort((a, b) => a.order - b.order);
+}
+async function deleteQuestion(id) { await openDB(); return promReq(tx('questions', 'readwrite').delete(id)); }
+async function reorderQuestions(projectId, orderedIds) {
+  await openDB();
+  const store = _db.transaction('questions', 'readwrite').objectStore('questions');
+  return new Promise((resolve, reject) => {
+    let done = 0, total = orderedIds.length;
+    if (total === 0) { resolve(); return; }
+    orderedIds.forEach((id, idx) => {
+      const req = store.get(id);
+      req.onsuccess = e => {
+        const q = e.target.result;
+        if (q) { q.order = idx; store.put(q); }
+        if (++done === total) resolve();
+      };
+      req.onerror = e => reject(e.target.error);
+    });
+  });
+}
+
+const DEFAULT_SETTINGS = {
+  pageSize: 'A4', orientation: 'portrait', fontSize: 12,
+  includeImages: true, imageSize: 'medium', lineSpacing: 'normal',
+  headerText: '', footerText: '', showNumbers: true,
+  showAnswerLines: true, answerLines: 3, marginMm: 15,
+};
+async function getSettings(projectId) {
+  await openDB();
+  const s = await promReq(tx('settings').get(projectId));
+  return s ? { ...DEFAULT_SETTINGS, ...s } : { ...DEFAULT_SETTINGS, projectId };
+}
+async function saveSettings(settings) { await openDB(); return promReq(tx('settings', 'readwrite').put(settings)); }
+
+function blobToURL(blob) { return blob ? URL.createObjectURL(blob) : null; }
+function dataURLtoBlob(dataURL) {
+  const [header, data] = dataURL.split(',');
+  const mime = header.match(/:(.*?);/)[1];
+  const bytes = atob(data);
+  const buf = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+function canvasToBlob(canvas, quality = 0.88) {
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+// ════════════════════════════════════════════════════════
+// CROPPER utilities
+// ════════════════════════════════════════════════════════
+let cropperInstance = null;
+
+function initCropper(imgEl) {
+  destroyCropper();
+  // Small timeout to allow DOM to render image dimensions
+  setTimeout(() => {
+    cropperInstance = new Cropper(imgEl, {
+      viewMode: 1,
+      autoCropArea: 0.9,
+      movable: true,
+      zoomable: true,
+      rotatable: true,
+      scalable: false,
+      responsive: true,
+      background: true,
+      guides: true,
+      center: true,
+      highlight: true,
+      dragMode: 'crop',
+      cropBoxMovable: true,
+      cropBoxResizable: true,
+      toggleDragModeOnDblclick: false,
+    });
+  }, 100);
+}
+
+function destroyCropper() {
+  if (cropperInstance) { cropperInstance.destroy(); cropperInstance = null; }
+}
+function getCropper() { return cropperInstance; }
+
+async function getCroppedBlob(maxDim = 1600) {
+  if (!cropperInstance) throw new Error('No active cropper');
+  const canvas = cropperInstance.getCroppedCanvas({
+    maxWidth: maxDim, maxHeight: maxDim,
+    fillColor: '#fff',
+    imageSmoothingEnabled: true,
+    imageSmoothingQuality: 'high',
+  });
+  return canvasToBlob(canvas, 0.88);
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('File read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// PDF GENERATION
+// ════════════════════════════════════════════════════════
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Blob read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+function getImageDimensions(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload  = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = src;
+  });
+}
+function slugify(str) { return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+function datestamp() { return new Date().toISOString().slice(0, 10); }
+
+async function generatePDF(project, questions, settings) {
+  const { jsPDF } = window.jspdf;
+  const isPortrait = settings.orientation !== 'landscape';
+  const margin     = Number(settings.marginMm) || 15;
+  const fontSize   = Number(settings.fontSize) || 12;
+  const doc = new jsPDF({ orientation: isPortrait ? 'p' : 'l', unit: 'mm', format: (settings.pageSize || 'A4').toLowerCase() });
+  const PAGE_W = doc.internal.pageSize.getWidth();
+  const PAGE_H = doc.internal.pageSize.getHeight();
+  const usableW = PAGE_W - margin * 2;
+  const lineGaps = { compact: 5, normal: 7, spacious: 10 };
+  const lineGap  = lineGaps[settings.lineSpacing] || 7;
+  const headerFontSize = Math.min(fontSize + 2, 16);
+  const bodyFontSize   = fontSize;
+  const metaFontSize   = Math.max(fontSize - 2, 8);
+  let yPos = margin;
+
+  if (settings.headerText?.trim()) {
+    doc.setFontSize(metaFontSize); doc.setTextColor(120, 120, 120);
+    doc.text(settings.headerText.trim(), margin, yPos);
+    doc.text(new Date().toLocaleDateString(), PAGE_W - margin, yPos, { align: 'right' });
+    yPos += 5;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, yPos, PAGE_W - margin, yPos);
+    yPos += 8;
+  }
+
+  doc.setFontSize(headerFontSize); doc.setTextColor(30, 30, 30); doc.setFont('helvetica', 'bold');
+  doc.text(project.name || 'Untitled', margin, yPos);
+  yPos += headerFontSize * 0.5 + 2;
+  doc.setFontSize(metaFontSize); doc.setTextColor(130, 130, 130); doc.setFont('helvetica', 'normal');
+  doc.text(`${questions.length} question${questions.length !== 1 ? 's' : ''}  ·  Generated ${new Date().toLocaleDateString()}`, margin, yPos);
+  yPos += 10;
+  doc.setDrawColor(180, 180, 180);
+  doc.line(margin, yPos, PAGE_W - margin, yPos);
+  yPos += 8;
+
+  for (let i = 0; i < questions.length; i++) {
+    const q = questions[i];
+    const qNum = settings.showNumbers ? `${i + 1}.  ` : '';
+    const qText = q.text || '(no text)';
+    const fullText = qNum + qText;
+
+    doc.setFontSize(bodyFontSize); doc.setTextColor(30, 30, 30); doc.setFont('helvetica', 'normal');
+    const lines = doc.splitTextToSize(fullText, usableW);
+    const textH = lines.length * (bodyFontSize * 0.35 + 1.5);
+    let imgW = 0, imgH = 0;
+    if (settings.includeImages && q.croppedBlob) {
+      const imgSizes = { small: 35, medium: 55, large: 75, full: usableW };
+      imgW = imgSizes[settings.imageSize] || 55;
+      imgH = imgW;
+    }
+    const answerH = settings.showAnswerLines ? (Number(settings.answerLines) || 3) * lineGap + 4 : 0;
+    const rowH = Math.max(textH + answerH + 6, imgH + 6);
+
+    if (yPos + rowH > PAGE_H - margin - 10) { doc.addPage(); yPos = margin; }
+    const rowStartY = yPos;
+
+    if (settings.includeImages && q.croppedBlob) {
+      try {
+        const dataURL = await blobToDataURL(q.croppedBlob);
+        const imgInfo = await getImageDimensions(dataURL);
+        imgH = imgW * (imgInfo.height / imgInfo.width);
+        doc.addImage(dataURL, 'JPEG', PAGE_W - margin - imgW, yPos, imgW, imgH);
+      } catch (err) { console.warn('Image embed failed', err); }
+    }
+
+    const textAreaW = settings.includeImages && q.croppedBlob ? usableW - imgW - 6 : usableW;
+    const wrappedLines = doc.splitTextToSize(fullText, textAreaW);
+    doc.setFontSize(bodyFontSize); doc.setFont('helvetica', 'normal'); doc.setTextColor(30, 30, 30);
+    doc.text(wrappedLines, margin, yPos + bodyFontSize * 0.35);
+
+    const textBottom = yPos + wrappedLines.length * (bodyFontSize * 0.35 + 1.5);
+    yPos = textBottom + 3;
+
+    if (settings.showAnswerLines) {
+      const numLines = Number(settings.answerLines) || 3;
+      doc.setDrawColor(210, 210, 210);
+      for (let l = 0; l < numLines; l++) {
+        doc.line(margin + 4, yPos + l * lineGap, margin + textAreaW - 4, yPos + l * lineGap);
+      }
+      yPos += numLines * lineGap + 2;
+    }
+
+    yPos = Math.max(yPos, rowStartY + (imgH || 0));
+    yPos += i < questions.length - 1 ? 4 : 8;
+    if (i < questions.length - 1) {
+      doc.setDrawColor(235, 235, 235);
+      doc.line(margin, yPos, PAGE_W - margin, yPos);
+      yPos += 6;
+    }
+  }
+
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFontSize(metaFontSize - 1); doc.setTextColor(170, 170, 170);
+    if (settings.footerText?.trim()) doc.text(settings.footerText.trim(), margin, PAGE_H - 8);
+    doc.text(`${p} / ${totalPages}`, PAGE_W - margin, PAGE_H - 8, { align: 'right' });
+  }
+
+  const fileName = `${slugify(project.name || 'export')}_${datestamp()}.pdf`;
+  doc.save(fileName);
+  return fileName;
+}
+
+// ════════════════════════════════════════════════════════
+// APP STATE & DOM
+// ════════════════════════════════════════════════════════
+const state = {
+  currentProjectId: null,
+  editingQuestionId: null,
+  objectURLs: [],
+  sortable: null,
+  confirmCallback: null,
+  saveQuestionCallback: null,
+};
+
+const $ = id => document.getElementById(id);
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  $(`screen-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.screen === name);
+  });
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function relDate(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString();
+}
+
+// ════════════════════════════════════════════════════════
+// TOAST
+// ════════════════════════════════════════════════════════
+function showToast(message, type = 'info', duration = 3200) {
+  const container = $('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'i';
+  const iconColor = type === 'success' ? 'var(--teal)' : type === 'error' ? 'var(--danger)' : 'var(--amber)';
+  toast.innerHTML = `<span style="font-weight:700;color:${iconColor}">${icon}</span> ${escHtml(message)}`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.transition = 'opacity 300ms ease';
+    toast.style.opacity = '0';
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// ════════════════════════════════════════════════════════
+// LOADING
+// ════════════════════════════════════════════════════════
+let _loadingEl = null;
+function showLoading(message = 'Please wait…') {
+  if (_loadingEl) return;
+  _loadingEl = document.createElement('div');
+  _loadingEl.className = 'loading-overlay';
+  _loadingEl.innerHTML = `<div class="spinner"></div><div>${escHtml(message)}</div>`;
+  document.body.appendChild(_loadingEl);
+}
+function hideLoading() { if (_loadingEl) { _loadingEl.remove(); _loadingEl = null; } }
+
+// ════════════════════════════════════════════════════════
+// MODALS — Simplified, no data-modal-confirm (caused bugs)
+// ════════════════════════════════════════════════════════
+function openModal(id) {
+  $(id).classList.add('open');
+}
+function closeModal(id) {
+  $(id).classList.remove('open');
+}
+
+// Close modals on backdrop click
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) {
+    e.target.classList.remove('open');
+  }
+  const closeBtn = e.target.closest('[data-modal-close]');
+  if (closeBtn) closeModal(closeBtn.dataset.modalClose);
+});
+
+// ════════════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  await openDB();
+  setupNav();
+  setupHomeScreen();
+  setupCaptureScreen();
+  setupQuestionsScreen();
+  setupPdfScreen();
+  setupModals();
+  setupZoomModal();
+  showHomeScreen();
+});
+
+// ════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════
+function setupNav() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.screen;
+      if (!target) return;
+      if (['capture', 'questions', 'pdf'].includes(target) && !state.currentProjectId) {
+        showToast('Open or create a project first', 'info');
+        return;
+      }
+      showScreen(target);
+      if (target === 'questions') renderQuestionsList();
+      if (target === 'pdf') renderPdfScreen();
+      if (target === 'capture') resetCaptureScreen();
+    });
+  });
+
+  $('btn-home-logo').addEventListener('click', () => showHomeScreen());
+  $('btn-header-back').addEventListener('click', () => showHomeScreen());
+}
+
+// ════════════════════════════════════════════════════════
+// HOME SCREEN
+// ════════════════════════════════════════════════════════
+function setupHomeScreen() {
+  $('btn-new-project').addEventListener('click', openNewProjectModal);
+}
+
+async function showHomeScreen() {
+  state.currentProjectId = null;
+  $('header-project-name').style.display = 'none';
+  $('btn-header-back').style.display = 'none';
+  showScreen('home');
+  await renderProjectList();
+}
+
+async function renderProjectList() {
+  const list = $('project-list');
+  const projects = await getAllProjects();
+  if (projects.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
           <line x1="12" y1="18" x2="12" y2="12"/>
           <line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        Generate &amp; Download PDF
-      </button>
-
-      <p style="text-align:center;font-size:11px;color:var(--slate);margin-top:14px;line-height:1.6;">
-        PDF is generated entirely in your browser via jsPDF.<br>
-        No data is uploaded anywhere.
-      </p>
-    </section>
-
-  </main><!-- /#main-content -->
-
-  <!-- ── Bottom Navigation ──────────────────────────────── -->
-  <nav id="bottom-nav">
-    <button class="nav-btn active" data-screen="home">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-        <polyline points="9 22 9 12 15 12 15 22"/>
-      </svg>
-      Projects
-    </button>
-    <button class="nav-btn" data-screen="capture">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-        <circle cx="12" cy="13" r="4"/>
-      </svg>
-      Capture
-    </button>
-    <button class="nav-btn" data-screen="questions">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <line x1="8" y1="6" x2="21" y2="6"/>
-        <line x1="8" y1="12" x2="21" y2="12"/>
-        <line x1="8" y1="18" x2="21" y2="18"/>
-        <line x1="3" y1="6" x2="3.01" y2="6"/>
-        <line x1="3" y1="12" x2="3.01" y2="12"/>
-        <line x1="3" y1="18" x2="3.01" y2="18"/>
-      </svg>
-      Questions
-    </button>
-    <button class="nav-btn" data-screen="pdf">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="12" y1="18" x2="12" y2="12"/>
-        <line x1="9" y1="15" x2="15" y2="15"/>
-      </svg>
-      Export PDF
-    </button>
-  </nav>
-
-</div><!-- /#app -->
-
-<!-- ══════════════════════════════════════════════════════════
-     MODALS
-     ══════════════════════════════════════════════════════════ -->
-
-<!-- New Project -->
-<div id="modal-project" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-title">
-      New Project
-      <button class="modal-close" data-modal-close="modal-project">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        <strong>No projects yet</strong>
+        <p>Create your first project to start scanning questions.</p>
+      </div>`;
+    return;
+  }
+  projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  list.innerHTML = projects.map(p => `
+    <div class="project-card" data-id="${p.id}">
+      <div class="project-card-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
-      </button>
+      </div>
+      <div class="project-card-body">
+        <div class="project-card-name">${escHtml(p.name)}</div>
+        <div class="project-card-meta">
+          <span>${p.questionCount || 0} question${(p.questionCount || 0) !== 1 ? 's' : ''}</span>
+          <span>${relDate(p.updatedAt)}</span>
+        </div>
+      </div>
+      <svg class="project-card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
     </div>
-    <div class="form-group">
-      <label for="input-project-name">PROJECT NAME</label>
-      <input type="text" id="input-project-name" placeholder="e.g. Physics Paper 2 · Mock Exam 2026" maxlength="80">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" data-modal-close="modal-project">Cancel</button>
-      <button class="btn btn-primary" data-modal-confirm="modal-project">Create Project</button>
-    </div>
-  </div>
-</div>
+  `).join('');
 
-<!-- Question Text -->
-<div id="modal-question-text" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-title">
-      Question Text
-      <button class="modal-close" data-modal-close="modal-question-text">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <p style="font-size:13px;color:var(--slate);margin-bottom:14px;line-height:1.5;">
-      Type the question text — this will appear in the PDF alongside the image.
-    </p>
-    <div class="form-group">
-      <label for="input-question-text">QUESTION</label>
-      <textarea id="input-question-text" placeholder="e.g. Describe the process of photosynthesis…" rows="4" maxlength="800"></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" data-modal-close="modal-question-text">Cancel</button>
-      <button class="btn btn-primary" data-modal-confirm="modal-question-text">Save</button>
-    </div>
-  </div>
-</div>
+  list.querySelectorAll('.project-card').forEach(card => {
+    card.addEventListener('click', () => openProject(card.dataset.id));
 
-<!-- Confirm Delete -->
-<div id="modal-confirm" class="modal-overlay">
-  <div class="modal">
-    <div class="modal-title">
-      Confirm
-      <button class="modal-close" data-modal-close="modal-confirm">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-    <p id="confirm-message" style="font-size:14px;color:var(--slate);line-height:1.6;"></p>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" data-modal-close="modal-confirm">Cancel</button>
-      <button class="btn btn-danger" data-modal-confirm="modal-confirm">Delete</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══════════════════════════════════════════════════════════
-     TOAST CONTAINER
-     ══════════════════════════════════════════════════════════ -->
-<div id="toast-container"></div>
-
-<!-- ══════════════════════════════════════════════════════════
-     EXTERNAL LIBRARIES (CDN — self-host for full offline)
-     Cropper.js  — image cropping
-     jsPDF       — browser-side PDF generation
-     SortableJS  — drag-to-reorder
-     ══════════════════════════════════════════════════════════ -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
-
-<!-- ── App entry point (ES modules) ─────────────────────── -->
-<script type="module" src="js/app.js"></script>
-
-<!-- ── Service Worker registration ──────────────────────── -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(reg => console.log('[SW] Registered:', reg.scope))
-        .catch(err => console.warn('[SW] Registration failed:', err));
+    // Long-press to delete
+    let pressTimer;
+    card.addEventListener('pointerdown', () => {
+      pressTimer = setTimeout(() => confirmDeleteProject(card.dataset.id), 700);
     });
+    card.addEventListener('pointerup', () => clearTimeout(pressTimer));
+    card.addEventListener('pointerleave', () => clearTimeout(pressTimer));
+    card.addEventListener('contextmenu', e => { e.preventDefault(); confirmDeleteProject(card.dataset.id); });
+  });
+}
+
+function setupModals() {
+  // New project create button
+  $('btn-create-project').addEventListener('click', async () => {
+    const name = $('input-project-name').value.trim();
+    if (!name) { showToast('Enter a project name', 'error'); return; }
+    const project = {
+      id: crypto.randomUUID(), name,
+      createdAt: Date.now(), updatedAt: Date.now(), questionCount: 0,
+    };
+    closeModal('modal-project');
+    await saveProject(project);
+    await renderProjectList();
+    await openProject(project.id);
+  });
+
+  // Enter key in project name input
+  $('input-project-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') $('btn-create-project').click();
+  });
+
+  // Save question confirm button — FIXED: direct event listener
+  $('btn-confirm-save-question').addEventListener('click', async () => {
+    if (state.saveQuestionCallback) {
+      await state.saveQuestionCallback();
+    }
+  });
+
+  // Confirm delete button
+  $('btn-confirm-action').addEventListener('click', async () => {
+    if (state.confirmCallback) {
+      await state.confirmCallback();
+      state.confirmCallback = null;
+    }
+    closeModal('modal-confirm');
+  });
+}
+
+function openNewProjectModal() {
+  $('input-project-name').value = '';
+  openModal('modal-project');
+  setTimeout(() => $('input-project-name').focus(), 120);
+}
+
+async function openProject(id) {
+  const project = await getProject(id);
+  if (!project) { showToast('Project not found', 'error'); return; }
+  state.currentProjectId = id;
+  $('header-project-name').textContent = project.name;
+  $('header-project-name').style.display = 'inline';
+  $('btn-header-back').style.display = 'flex';
+  showScreen('questions');
+  renderQuestionsList();
+}
+
+function confirmDeleteProject(id) {
+  getProject(id).then(project => {
+    if (!project) return;
+    $('confirm-message').textContent = `Delete "${project.name}"? This removes all questions and cannot be undone.`;
+    state.confirmCallback = async () => {
+      await deleteProject(id);
+      if (state.currentProjectId === id) {
+        state.currentProjectId = null;
+        $('header-project-name').style.display = 'none';
+        $('btn-header-back').style.display = 'none';
+      }
+      await renderProjectList();
+      showToast('Project deleted', 'info');
+    };
+    openModal('modal-confirm');
+  });
+}
+
+// ════════════════════════════════════════════════════════
+// QUESTIONS SCREEN
+// ════════════════════════════════════════════════════════
+function setupQuestionsScreen() {
+  $('btn-add-question').addEventListener('click', () => {
+    state.editingQuestionId = null;
+    showScreen('capture');
+    resetCaptureScreen();
+  });
+}
+
+async function renderQuestionsList() {
+  if (!state.currentProjectId) return;
+  const project   = await getProject(state.currentProjectId);
+  const questions = await getQuestionsForProject(state.currentProjectId);
+  const list      = $('questions-list');
+
+  $('questions-count').textContent = `${questions.length} Q`;
+
+  if (project && project.questionCount !== questions.length) {
+    project.questionCount = questions.length;
+    await saveProject(project);
   }
 
-  // Back button from project → home
-  document.getElementById('btn-home-logo-back').addEventListener('click', () => {
-    // navigate to home without import — handled after module load
-    window._goHome?.();
-  });
-  document.getElementById('btn-home-logo').addEventListener('click', () => {
-    window._goHome?.();
-  });
-</script>
+  state.objectURLs.forEach(u => URL.revokeObjectURL(u));
+  state.objectURLs.length = 0;
 
-<!-- ── Expose goHome to non-module context ────────────────
-     The module sets window._goHome after DOMContentLoaded  -->
-<script type="module">
-  import { openDB } from './js/db.js';
-  // expose showHomeScreen globally so the inline script above can call it
-  document.addEventListener('DOMContentLoaded', () => {
-    // patch: expose go-home via a custom event instead
-    document.getElementById('btn-home-logo-back').addEventListener('click', () => {
-      document.getElementById('app').dispatchEvent(new CustomEvent('gohome'));
+  if (questions.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <strong>No questions yet</strong>
+        <p>Tap "Add Question" to photograph and crop your first question.</p>
+      </div>`;
+    if (state.sortable) { state.sortable.destroy(); state.sortable = null; }
+    return;
+  }
+
+  list.innerHTML = questions.map((q, idx) => {
+    let thumbSrc = '';
+    if (q.thumbBlob) {
+      thumbSrc = blobToURL(q.thumbBlob);
+      state.objectURLs.push(thumbSrc);
+    }
+    return `
+      <div class="question-item" data-id="${q.id}">
+        <span class="drag-handle" title="Drag to reorder">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+        </span>
+        <div class="question-body">
+          <div class="question-num">Q${idx + 1}</div>
+          <div class="question-text">${escHtml(q.text || '(no text)')}</div>
+        </div>
+        ${thumbSrc ? `<img class="question-thumb" src="${thumbSrc}" alt="Tap to zoom" data-id="${q.id}" title="Tap to zoom">` : ''}
+        <div class="question-actions">
+          <button class="btn btn-icon btn-sm" data-action="edit" data-id="${q.id}" title="Edit text">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-icon btn-sm" data-action="delete" data-id="${q.id}" title="Delete">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Bind action buttons
+  list.querySelectorAll('[data-action="edit"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); editQuestion(btn.dataset.id); });
+  });
+  list.querySelectorAll('[data-action="delete"]').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); confirmDeleteQuestion(btn.dataset.id); });
+  });
+  // Thumb zoom
+  list.querySelectorAll('.question-thumb').forEach(img => {
+    img.addEventListener('click', () => zoomImage(img.src));
+  });
+
+  // Sortable
+  if (state.sortable) { state.sortable.destroy(); state.sortable = null; }
+  if (window.Sortable) {
+    state.sortable = Sortable.create(list, {
+      handle: '.drag-handle',
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      onEnd: async () => {
+        const ids = [...list.querySelectorAll('.question-item')].map(el => el.dataset.id);
+        await reorderQuestions(state.currentProjectId, ids);
+      },
     });
-  });
-</script>
+  }
+}
 
+async function editQuestion(id) {
+  const q = await getQuestion(id);
+  if (!q) return;
+  $('input-question-text').value = q.text || '';
+  state.saveQuestionCallback = async () => {
+    const text = $('input-question-text').value.trim();
+    if (!text) { showToast('Question text is required', 'error'); return; }
+    q.text = text;
+    await saveQuestion(q);
+    closeModal('modal-question-text');
+    await renderQuestionsList();
+    showToast('Question updated', 'success');
+  };
+  openModal('modal-question-text');
+  setTimeout(() => $('input-question-text').focus(), 120);
+}
+
+function confirmDeleteQuestion(id) {
+  $('confirm-message').textContent = 'Delete this question? This cannot be undone.';
+  state.confirmCallback = async () => {
+    await deleteQuestion(id);
+    await renderQuestionsList();
+    showToast('Question deleted', 'info');
+  };
+  openModal('modal-confirm');
+}
+
+// ════════════════════════════════════════════════════════
+// CAPTURE SCREEN — FIXED
+// ════════════════════════════════════════════════════════
+function setupCaptureScreen() {
+  const cameraInput  = $('file-camera');
+  const galleryInput = $('file-gallery');
+  const dropZone     = $('drop-zone');
+
+  // Camera file input
+  cameraInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+    cameraInput.value = '';
+  });
+
+  // Gallery file input
+  galleryInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+    galleryInput.value = '';
+  });
+
+  // Drag-and-drop
+  dropZone.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('drag-over');
+  });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) handleFile(file);
+  });
+
+  // Crop tool buttons
+  $('btn-rotate-ccw').addEventListener('click', () => cropperInstance?.rotate(-90));
+  $('btn-rotate-cw').addEventListener('click',  () => cropperInstance?.rotate(90));
+  $('btn-flip-h').addEventListener('click', () => {
+    if (!cropperInstance) return;
+    const d = cropperInstance.getData();
+    cropperInstance.scaleX(-(d.scaleX || 1));
+  });
+  $('btn-crop-reset').addEventListener('click', () => cropperInstance?.reset());
+  $('btn-change-image').addEventListener('click', () => resetCaptureScreen());
+
+  // SAVE CROP BUTTON — direct click handler, no modal callback system
+  $('btn-save-crop').addEventListener('click', () => saveCroppedQuestion());
+
+  // CANCEL
+  $('btn-cancel-crop').addEventListener('click', () => {
+    destroyCropper();
+    showScreen('questions');
+  });
+}
+
+async function handleFile(file) {
+  if (!file.type.startsWith('image/')) {
+    showToast('Please select an image file', 'error');
+    return;
+  }
+  showLoading('Loading image…');
+  try {
+    const dataURL = await readFileAsDataURL(file);
+    const cropImg = $('crop-image');
+
+    // Show cropper section, hide source panel
+    $('capture-source-panel').style.display = 'none';
+    const cropSection = $('cropper-section');
+    cropSection.classList.add('visible');
+
+    cropImg.src = dataURL;
+    cropImg.onload = () => {
+      hideLoading();
+      initCropper(cropImg);
+    };
+    cropImg.onerror = () => {
+      hideLoading();
+      showToast('Failed to load image', 'error');
+      resetCaptureScreen();
+    };
+  } catch (err) {
+    hideLoading();
+    showToast('Failed to load image', 'error');
+    console.error(err);
+  }
+}
+
+async function saveCroppedQuestion() {
+  if (!cropperInstance) {
+    showToast('Please select an image first', 'error');
+    return;
+  }
+  if (!state.currentProjectId) {
+    showToast('No active project — go back and open one', 'error');
+    return;
+  }
+
+  // Open text modal
+  $('input-question-text').value = '';
+  
+  state.saveQuestionCallback = async () => {
+    const text = $('input-question-text').value.trim();
+    if (!text) {
+      showToast('Please enter question text', 'error');
+      return;
+    }
+
+    closeModal('modal-question-text');
+    showLoading('Saving question…');
+
+    try {
+      const croppedBlob = await getCroppedBlob(1600);
+      const thumbCanvas = cropperInstance.getCroppedCanvas({ maxWidth: 160, maxHeight: 160 });
+      const thumbBlob   = await canvasToBlob(thumbCanvas, 0.72);
+
+      const question = {
+        id:        state.editingQuestionId || crypto.randomUUID(),
+        projectId: state.currentProjectId,
+        text,
+        croppedBlob,
+        thumbBlob,
+        createdAt: Date.now(),
+        order:     Date.now(),
+      };
+
+      await saveQuestion(question);
+
+      const project = await getProject(state.currentProjectId);
+      if (project) {
+        const qs = await getQuestionsForProject(state.currentProjectId);
+        project.questionCount = qs.length;
+        await saveProject(project);
+      }
+
+      destroyCropper();
+      resetCaptureScreen();
+      showScreen('questions');
+      await renderQuestionsList();
+      showToast('Question saved!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save question', 'error');
+    } finally {
+      hideLoading();
+    }
+  };
+
+  openModal('modal-question-text');
+  setTimeout(() => $('input-question-text').focus(), 120);
+}
+
+function resetCaptureScreen() {
+  destroyCropper();
+  $('capture-source-panel').style.display = '';
+  const cropSection = $('cropper-section');
+  cropSection.classList.remove('visible');
+  $('crop-image').src = '';
+  state.editingQuestionId = null;
+}
+
+// ════════════════════════════════════════════════════════
+// IMAGE ZOOM MODAL
+// ════════════════════════════════════════════════════════
+function setupZoomModal() {
+  $('btn-close-zoom').addEventListener('click', closeZoom);
+  $('zoom-backdrop').addEventListener('click', e => {
+    if (e.target === $('zoom-backdrop')) closeZoom();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeZoom();
+  });
+}
+function zoomImage(src) {
+  $('zoom-img').src = src;
+  $('modal-zoom').style.display = 'block';
+}
+function closeZoom() {
+  $('modal-zoom').style.display = 'none';
+  $('zoom-img').src = '';
+}
+
+// ════════════════════════════════════════════════════════
+// PDF SCREEN
+// ════════════════════════════════════════════════════════
+function setupPdfScreen() {
+  $('btn-generate-pdf').addEventListener('click', handleGeneratePDF);
+  const fields = ['pdf-page-size','pdf-orientation','pdf-font-size','pdf-include-images',
+                  'pdf-image-size','pdf-line-spacing','pdf-show-numbers','pdf-show-answers',
+                  'pdf-answer-lines','pdf-header','pdf-footer','pdf-margin'];
+  fields.forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('change', () => { autoSavePdfSettings(); updatePdfPreview(); });
+  });
+}
+
+async function renderPdfScreen() {
+  if (!state.currentProjectId) return;
+  const settings  = await getSettings(state.currentProjectId);
+  const questions = await getQuestionsForProject(state.currentProjectId);
+  $('pdf-page-size').value        = settings.pageSize;
+  $('pdf-orientation').value      = settings.orientation;
+  $('pdf-font-size').value        = settings.fontSize;
+  $('pdf-include-images').checked = settings.includeImages;
+  $('pdf-image-size').value       = settings.imageSize;
+  $('pdf-line-spacing').value     = settings.lineSpacing;
+  $('pdf-show-numbers').checked   = settings.showNumbers;
+  $('pdf-show-answers').checked   = settings.showAnswerLines;
+  $('pdf-answer-lines').value     = settings.answerLines;
+  $('pdf-header').value           = settings.headerText || '';
+  $('pdf-footer').value           = settings.footerText || '';
+  $('pdf-margin').value           = settings.marginMm;
+  $('pdf-question-count').textContent = questions.length;
+  updatePdfPreview();
+}
+
+function updatePdfPreview() {
+  const preview = $('pdf-preview-content');
+  const count   = parseInt($('pdf-question-count').textContent) || 0;
+  const rows    = Math.min(count, 5);
+  const showImg = $('pdf-include-images')?.checked;
+  const showAns = $('pdf-show-answers')?.checked;
+  const numAns  = parseInt($('pdf-answer-lines')?.value) || 3;
+  let html = `<div class="pdf-preview-title">${escHtml($('header-project-name').textContent || 'Project')}</div>`;
+  for (let i = 0; i < rows; i++) {
+    html += `<div class="pdf-preview-row">
+      <div class="pdf-preview-num">${i + 1}.</div>
+      <div style="flex:1">
+        <div style="display:flex;gap:4px;align-items:flex-start">
+          <div style="flex:1"><div class="pdf-preview-line"></div><div class="pdf-preview-line" style="margin-top:3px;width:70%"></div></div>
+          ${showImg ? '<div class="pdf-preview-img-box"></div>' : ''}
+        </div>
+        ${showAns ? Array.from({length: numAns}).map(() => `<div class="pdf-preview-line" style="margin-top:5px;background:#f0f0f0"></div>`).join('') : ''}
+      </div>
+    </div>`;
+  }
+  if (count > 5) html += `<div style="text-align:center;font-size:7px;color:#bbb;padding-top:4px">+ ${count - 5} more</div>`;
+  if (count === 0) html += `<div style="text-align:center;font-size:7px;color:#bbb;padding:10px 0">No questions yet</div>`;
+  preview.innerHTML = html;
+}
+
+async function autoSavePdfSettings() {
+  if (!state.currentProjectId) return;
+  const base = await getSettings(state.currentProjectId);
+  const settings = {
+    ...base,
+    projectId:       state.currentProjectId,
+    pageSize:        $('pdf-page-size').value,
+    orientation:     $('pdf-orientation').value,
+    fontSize:        parseInt($('pdf-font-size').value),
+    includeImages:   $('pdf-include-images').checked,
+    imageSize:       $('pdf-image-size').value,
+    lineSpacing:     $('pdf-line-spacing').value,
+    showNumbers:     $('pdf-show-numbers').checked,
+    showAnswerLines: $('pdf-show-answers').checked,
+    answerLines:     parseInt($('pdf-answer-lines').value),
+    headerText:      $('pdf-header').value,
+    footerText:      $('pdf-footer').value,
+    marginMm:        parseInt($('pdf-margin').value),
+  };
+  await saveSettings(settings);
+}
+
+async function handleGeneratePDF() {
+  if (!state.currentProjectId) { showToast('No active project', 'error'); return; }
+  const project   = await getProject(state.currentProjectId);
+  const questions = await getQuestionsForProject(state.currentProjectId);
+  if (questions.length === 0) { showToast('No questions to export', 'info'); return; }
+  await autoSavePdfSettings();
+  const base = await getSettings(state.currentProjectId);
+  const settings = {
+    ...base,
+    projectId:       state.currentProjectId,
+    pageSize:        $('pdf-page-size').value,
+    orientation:     $('pdf-orientation').value,
+    fontSize:        parseInt($('pdf-font-size').value),
+    includeImages:   $('pdf-include-images').checked,
+    imageSize:       $('pdf-image-size').value,
+    lineSpacing:     $('pdf-line-spacing').value,
+    showNumbers:     $('pdf-show-numbers').checked,
+    showAnswerLines: $('pdf-show-answers').checked,
+    answerLines:     parseInt($('pdf-answer-lines').value),
+    headerText:      $('pdf-header').value,
+    footerText:      $('pdf-footer').value,
+    marginMm:        parseInt($('pdf-margin').value),
+  };
+  showLoading('Generating PDF…');
+  try {
+    const filename = await generatePDF(project, questions, settings);
+    showToast(`PDF saved: ${filename}`, 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('PDF generation failed', 'error');
+  } finally {
+    hideLoading();
+  }
+}
+</script>
 </body>
 </html>
