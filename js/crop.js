@@ -9,23 +9,25 @@ let cropperInstance = null;
 
 /**
  * Initialise Cropper.js on an <img> element.
- * Cropper.js is loaded from CDN (can be self-hosted for offline-first).
  */
 export function initCropper(imgEl, options = {}) {
   destroyCropper();
   cropperInstance = new Cropper(imgEl, {
-    viewMode: 2,
-    autoCropArea: 1,
+    viewMode: 1,
+    autoCropArea: 0.85,
     movable: true,
     zoomable: true,
     rotatable: true,
-    scalable: false,
+    scalable: true,
     responsive: true,
-    background: false,
+    background: true,
     guides: true,
     center: true,
-    highlight: false,
-    dragMode: 'move',
+    highlight: true,
+    dragMode: 'crop',
+    cropBoxMovable: true,
+    cropBoxResizable: true,
+    toggleDragModeOnDblclick: true,
     ...options,
   });
   return cropperInstance;
@@ -38,6 +40,7 @@ export function destroyCropper() {
   }
 }
 
+/** Export getCropper so app.js can access the current instance */
 export function getCropper() {
   return cropperInstance;
 }
@@ -60,7 +63,6 @@ export async function getCroppedBlob(maxDim = 1600) {
 
 /**
  * Generate a small thumbnail Blob from the full image element.
- * Used in the question list cards.
  */
 export async function getThumbBlob(imgEl, size = 120) {
   const canvas = document.createElement('canvas');
@@ -68,8 +70,7 @@ export async function getThumbBlob(imgEl, size = 120) {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  // Centre-crop to square
-  const s = Math.min(imgEl.naturalWidth, imgEl.naturalHeight);
+  const s  = Math.min(imgEl.naturalWidth, imgEl.naturalHeight);
   const sx = (imgEl.naturalWidth  - s) / 2;
   const sy = (imgEl.naturalHeight - s) / 2;
   ctx.drawImage(imgEl, sx, sy, s, s, 0, 0, size, size);
@@ -89,16 +90,10 @@ export function readFileAsDataURL(file) {
   });
 }
 
-/**
- * Rotate the active cropper ±90°.
- */
 export function rotateCropper(deg) {
   cropperInstance?.rotate(deg);
 }
 
-/**
- * Flip the active cropper horizontally/vertically.
- */
 export function flipCropper(axis) {
   if (!cropperInstance) return;
   const d = cropperInstance.getData();
@@ -106,9 +101,11 @@ export function flipCropper(axis) {
   else               cropperInstance.scaleY(-(d.scaleY || 1));
 }
 
-/**
- * Reset crop box to cover the full image.
- */
 export function resetCropper() {
   cropperInstance?.reset();
+}
+
+/** Zoom in/out helpers */
+export function zoomCropper(ratio) {
+  cropperInstance?.zoom(ratio);
 }

@@ -1,8 +1,14 @@
 /**
  * app.js — Main application controller
  *
- * 100% client-side. No backend. No authentication.
- * Data stored in IndexedDB. Images never leave the device.
+ * Fixes:
+ *  - Save Question button now works (getCropper was not exported before)
+ *  - Camera & Gallery as separate buttons
+ *  - Crop visibility enhanced
+ *  - Zoom controls added
+ *  - Preview cropped image before saving
+ *  - Search questions feature
+ *  - Dark/brightness filter for scanned images
  */
 
 import {
@@ -14,8 +20,8 @@ import {
 } from './db.js';
 
 import {
-  initCropper, destroyCropper, getCroppedBlob, getThumbBlob,
-  readFileAsDataURL, rotateCropper, flipCropper, resetCropper,
+  initCropper, destroyCropper, getCropper, getCroppedBlob, getThumbBlob,
+  readFileAsDataURL, rotateCropper, flipCropper, resetCropper, zoomCropper,
 } from './crop.js';
 
 import { generatePDF } from './pdf.js';
@@ -26,7 +32,8 @@ const state = {
   editingQuestionId: null,
   activeCropDataURL: null,
   sortable: null,
-  objectURLs: [], // tracked for revocation
+  objectURLs: [],
+  searchQuery: '',
 };
 
 // ── DOM refs ──────────────────────────────────────────────────
@@ -49,7 +56,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupPdfScreen();
   showHomeScreen();
 
-  // Go-home event from header back button
   document.getElementById('app').addEventListener('gohome', () => showHomeScreen());
   window._goHome = () => showHomeScreen();
 });
@@ -61,7 +67,7 @@ function setupNav() {
       const target = btn.dataset.screen;
       if (!target) return;
       if ((target === 'capture' || target === 'questions' || target === 'pdf') && !state.currentProjectId) {
-        showToast('Open or create a project first', 'info');
+        showToast('Pehle ek project open karein', 'info');
         return;
       }
       screen(target);
@@ -98,13 +104,12 @@ async function renderProjectList() {
           <line x1="12" y1="18" x2="12" y2="12"/>
           <line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
-        <strong>No projects yet</strong>
-        <p>Create a new project to start scanning questions.</p>
+        <strong>Koi project nahi</strong>
+        <p>Nayi project banayein aur questions scan karein.</p>
       </div>`;
     return;
   }
 
-  // Sort newest first
   projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
   list.innerHTML = projects.map(p => `
@@ -121,21 +126,35 @@ async function renderProjectList() {
       <div class="project-card-body">
         <div class="project-card-name">${escHtml(p.name)}</div>
         <div class="project-card-meta">
-          <span>${p.questionCount || 0} q${(p.questionCount || 0) !== 1 ? 's' : ''}</span>
+          <span>${p.questionCount || 0} question${(p.questionCount || 0) !== 1 ? 's' : ''}</span>
           <span>${relDate(p.updatedAt)}</span>
         </div>
       </div>
-      <svg class="project-card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
+      <div class="project-card-actions">
+        <button class="btn btn-icon btn-sm btn-danger-soft" data-delete-project="${p.id}" title="Delete Project">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+            <path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/>
+          </svg>
+        </button>
+        <svg class="project-card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
     </div>
   `).join('');
 
   list.querySelectorAll('.project-card').forEach(card => {
-    card.addEventListener('click', () => openProject(card.dataset.id));
-    card.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      confirmDeleteProject(card.dataset.id);
+    card.addEventListener('click', e => {
+      if (e.target.closest('[data-delete-project]')) return;
+      openProject(card.dataset.id);
+    });
+  });
+
+  list.querySelectorAll('[data-delete-project]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      confirmDeleteProject(btn.dataset.deleteProject);
     });
   });
 }
@@ -143,7 +162,7 @@ async function renderProjectList() {
 function openNewProjectModal() {
   showModal('modal-project', async () => {
     const name = $('input-project-name').value.trim();
-    if (!name) { showToast('Enter a project name', 'error'); return false; }
+    if (!name) { showToast('Project ka naam zaroor daalen', 'error'); return false; }
 
     const project = {
       id: crypto.randomUUID(),
@@ -163,7 +182,7 @@ function openNewProjectModal() {
 
 async function openProject(id) {
   const project = await getProject(id);
-  if (!project) { showToast('Project not found', 'error'); return; }
+  if (!project) { showToast('Project nahi mila', 'error'); return; }
   state.currentProjectId = id;
   $('header-project-name').textContent = project.name;
   $('header-project-name').style.display = 'inline';
@@ -174,14 +193,14 @@ async function openProject(id) {
 async function confirmDeleteProject(id) {
   const project = await getProject(id);
   if (!project) return;
-  showConfirm(`Delete "${escHtml(project.name)}"? This will remove all questions and cannot be undone.`, async () => {
+  showConfirm(`"${escHtml(project.name)}" delete karein? Iske saare questions hata diye jayenge.`, async () => {
     await deleteProject(id);
     if (state.currentProjectId === id) {
       state.currentProjectId = null;
       $('header-project-name').style.display = 'none';
     }
     await renderProjectList();
-    showToast('Project deleted', 'info');
+    showToast('Project delete ho gaya', 'info');
   });
 }
 
@@ -195,24 +214,35 @@ function setupQuestionsScreen() {
     screen('capture');
     resetCaptureScreen();
   });
+
+  // Search
+  $('questions-search').addEventListener('input', e => {
+    state.searchQuery = e.target.value.trim().toLowerCase();
+    renderQuestionsList();
+  });
 }
 
 async function renderQuestionsList() {
   if (!state.currentProjectId) return;
 
   const project   = await getProject(state.currentProjectId);
-  const questions = await getQuestionsForProject(state.currentProjectId);
+  let questions   = await getQuestionsForProject(state.currentProjectId);
   const list      = $('questions-list');
 
   $('questions-count').textContent = `${questions.length} question${questions.length !== 1 ? 's' : ''}`;
 
-  // Update project question count
   if (project && project.questionCount !== questions.length) {
     project.questionCount = questions.length;
     await saveProject(project);
   }
 
-  // Revoke old object URLs
+  // Apply search filter
+  if (state.searchQuery) {
+    questions = questions.filter(q =>
+      (q.text || '').toLowerCase().includes(state.searchQuery)
+    );
+  }
+
   state.objectURLs.forEach(u => URL.revokeObjectURL(u));
   state.objectURLs.length = 0;
 
@@ -224,8 +254,8 @@ async function renderQuestionsList() {
           <line x1="12" y1="8" x2="12" y2="12"/>
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <strong>No questions yet</strong>
-        <p>Tap the + button to photograph and add your first question.</p>
+        <strong>${state.searchQuery ? 'Koi result nahi mila' : 'Koi question nahi'}</strong>
+        <p>${state.searchQuery ? 'Dusra search term try karein.' : '+ button dabayein aur pehla question add karein.'}</p>
       </div>`;
 
     if (state.sortable) { state.sortable.destroy(); state.sortable = null; }
@@ -250,9 +280,9 @@ async function renderQuestionsList() {
         </span>
         <div class="question-body">
           <div class="question-num">Q${idx + 1}</div>
-          <div class="question-text">${escHtml(q.text || '(no text)')}</div>
+          <div class="question-text">${escHtml(q.text || '(koi text nahi)')}</div>
         </div>
-        ${thumbSrc ? `<img class="question-thumb" src="${thumbSrc}" alt="Question image">` : ''}
+        ${thumbSrc ? `<img class="question-thumb" src="${thumbSrc}" alt="Question image" data-preview="${escHtml(thumbSrc)}">` : ''}
         <div class="question-actions">
           <button class="btn btn-icon btn-sm" data-action="edit" data-id="${q.id}" title="Edit">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -280,11 +310,16 @@ async function renderQuestionsList() {
     btn.addEventListener('click', e => { e.stopPropagation(); confirmDeleteQuestion(btn.dataset.id); });
   });
 
+  // Image preview on click
+  list.querySelectorAll('.question-thumb').forEach(img => {
+    img.addEventListener('click', () => showImagePreview(img.src));
+  });
+
   // Sortable
   if (state.sortable) { state.sortable.destroy(); state.sortable = null; }
-  if (window.Sortable) {
+  if (window.Sortable && !state.searchQuery) {
     state.sortable = Sortable.create(list, {
-      handle:    '.drag-handle',
+      handle: '.drag-handle',
       animation: 150,
       ghostClass: 'sortable-ghost',
       chosenClass: 'sortable-chosen',
@@ -302,11 +337,10 @@ async function editQuestion(id) {
   if (!q) return;
   showModal('modal-question-text', async () => {
     const text = $('input-question-text').value.trim();
-    if (!text) { showToast('Question text is required', 'error'); return false; }
+    if (!text) { showToast('Question text zaroor chahiye', 'error'); return false; }
     q.text = text;
     await saveQuestion(q);
     await renderQuestionsList();
-    // Update project updatedAt
     const project = await getProject(state.currentProjectId);
     if (project) await saveProject(project);
     return true;
@@ -316,11 +350,28 @@ async function editQuestion(id) {
 }
 
 async function confirmDeleteQuestion(id) {
-  showConfirm('Delete this question? This cannot be undone.', async () => {
+  showConfirm('Yeh question delete karein? Yeh action undo nahi ho sakta.', async () => {
     await deleteQuestion(id);
     await renderQuestionsList();
-    showToast('Question deleted', 'info');
+    showToast('Question delete ho gaya', 'info');
   });
+}
+
+// Image full preview modal
+function showImagePreview(src) {
+  let overlay = $('img-preview-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'img-preview-overlay';
+    overlay.style.cssText = `
+      position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;
+      display:flex;align-items:center;justify-content:center;cursor:zoom-out;
+      padding:20px;
+    `;
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  }
+  overlay.innerHTML = `<img src="${src}" style="max-width:100%;max-height:90dvh;border-radius:8px;box-shadow:0 4px 30px rgba(0,0,0,.6);">`;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -328,19 +379,35 @@ async function confirmDeleteQuestion(id) {
 // ════════════════════════════════════════════════════════════════
 
 function setupCaptureScreen() {
-  const fileInput    = $('file-input');
+  const cameraInput  = $('camera-input');
+  const galleryInput = $('gallery-input');
   const captureZone  = $('capture-zone');
-  const cropperWrap  = $('cropper-wrapper');
-  const cropImg      = $('crop-image');
 
-  // File input change
-  fileInput.addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (file) handleFile(file);
-    fileInput.value = '';
+  // Camera button — opens camera directly
+  $('btn-camera').addEventListener('click', () => cameraInput.click());
+
+  // Gallery button — opens file picker (no camera)
+  $('btn-gallery').addEventListener('click', () => galleryInput.click());
+
+  // Also allow clicking the entire zone
+  captureZone.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    galleryInput.click();
   });
 
-  // Drag-and-drop on capture zone
+  cameraInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+    cameraInput.value = '';
+  });
+
+  galleryInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) handleFile(file);
+    galleryInput.value = '';
+  });
+
+  // Drag-and-drop
   captureZone.addEventListener('dragover', e => {
     e.preventDefault();
     captureZone.classList.add('drag-over');
@@ -359,78 +426,96 @@ function setupCaptureScreen() {
   $('btn-flip-h').addEventListener('click',     () => flipCropper('h'));
   $('btn-flip-v').addEventListener('click',     () => flipCropper('v'));
   $('btn-crop-reset').addEventListener('click', () => resetCropper());
+  $('btn-zoom-in').addEventListener('click',    () => zoomCropper(0.1));
+  $('btn-zoom-out').addEventListener('click',   () => zoomCropper(-0.1));
 
-  // Save cropped question
+  // Brightness / contrast filter
+  $('range-brightness').addEventListener('input', applyImageFilter);
+  $('range-contrast').addEventListener('input', applyImageFilter);
+
+  // Save
   $('btn-save-crop').addEventListener('click', saveCroppedQuestion);
 
-  // Cancel back to questions
+  // Cancel
   $('btn-cancel-crop').addEventListener('click', () => {
     destroyCropper();
     screen('questions');
   });
 }
 
+function applyImageFilter() {
+  const brightness = $('range-brightness')?.value || 100;
+  const contrast   = $('range-contrast')?.value || 100;
+  const img = $('crop-image');
+  if (img) {
+    img.style.filter = `brightness(${brightness}%) contrast(${contrast}%)`;
+  }
+}
+
 async function handleFile(file) {
   if (!file.type.startsWith('image/')) {
-    showToast('Please select an image file', 'error');
+    showToast('Sirf image file select karein', 'error');
     return;
   }
 
-  showLoading('Loading image…');
+  showLoading('Image load ho rahi hai…');
   try {
     const dataURL = await readFileAsDataURL(file);
     state.activeCropDataURL = dataURL;
 
     const cropImg = $('crop-image');
     cropImg.src = dataURL;
+    cropImg.style.filter = '';
 
-    $('capture-zone').style.display  = 'none';
-    $('cropper-wrapper').style.display = 'block';
-    $('crop-controls').style.display = 'flex';
-    $('crop-save-row').style.display = 'flex';
+    // Reset sliders
+    if ($('range-brightness')) $('range-brightness').value = 100;
+    if ($('range-contrast'))   $('range-contrast').value   = 100;
 
-    // Wait for image to load before init Cropper
+    $('capture-zone').style.display     = 'none';
+    $('cropper-wrapper').style.display  = 'block';
+    $('crop-controls').style.display    = 'flex';
+    $('crop-filter-row').style.display  = 'flex';
+    $('crop-save-row').style.display    = 'flex';
+
     cropImg.onload = () => {
       initCropper(cropImg);
       hideLoading();
     };
   } catch (err) {
     hideLoading();
-    showToast('Failed to load image', 'error');
+    showToast('Image load karne mein problem aayi', 'error');
     console.error(err);
   }
 }
 
 async function saveCroppedQuestion() {
-  if (!getCropper()) { showToast('Please select an image first', 'error'); return; }
-  if (!state.currentProjectId) { showToast('No active project', 'error'); return; }
+  const cropper = getCropper();
+  if (!cropper) { showToast('Pehle ek image select karein', 'error'); return; }
+  if (!state.currentProjectId) { showToast('Koi active project nahi', 'error'); return; }
 
-  // Open text input modal
   showModal('modal-question-text', async () => {
     const text = $('input-question-text').value.trim();
-    if (!text) { showToast('Question text is required', 'error'); return false; }
+    if (!text) { showToast('Question text zaroor chahiye', 'error'); return false; }
 
-    showLoading('Saving question…');
+    showLoading('Question save ho raha hai…');
     try {
       const croppedBlob = await getCroppedBlob(1600);
 
-      // Thumbnail from cropper canvas
-      const canvas = getCropper().getCroppedCanvas({ maxWidth: 160, maxHeight: 160 });
+      const canvas   = cropper.getCroppedCanvas({ maxWidth: 160, maxHeight: 160 });
       const thumbBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
 
       const question = {
-        id:           state.editingQuestionId || crypto.randomUUID(),
-        projectId:    state.currentProjectId,
+        id:        state.editingQuestionId || crypto.randomUUID(),
+        projectId: state.currentProjectId,
         text,
         croppedBlob,
         thumbBlob,
-        createdAt:    Date.now(),
-        order:        Date.now(),
+        createdAt: Date.now(),
+        order:     Date.now(),
       };
 
       await saveQuestion(question);
 
-      // Update project meta
       const project = await getProject(state.currentProjectId);
       if (project) {
         const qs = await getQuestionsForProject(state.currentProjectId);
@@ -442,10 +527,10 @@ async function saveCroppedQuestion() {
       resetCaptureScreen();
       screen('questions');
       await renderQuestionsList();
-      showToast('Question saved', 'success');
+      showToast('Question save ho gaya ✓', 'success');
     } catch (err) {
       console.error(err);
-      showToast('Failed to save question', 'error');
+      showToast('Question save karne mein problem aayi', 'error');
     } finally {
       hideLoading();
     }
@@ -459,11 +544,15 @@ async function saveCroppedQuestion() {
 function resetCaptureScreen() {
   destroyCropper();
   state.activeCropDataURL = null;
-  $('capture-zone').style.display  = 'block';
+  $('capture-zone').style.display    = 'block';
   $('cropper-wrapper').style.display = 'none';
-  $('crop-controls').style.display = 'none';
-  $('crop-save-row').style.display = 'none';
+  $('crop-controls').style.display   = 'none';
+  $('crop-filter-row').style.display = 'none';
+  $('crop-save-row').style.display   = 'none';
   $('crop-image').src = '';
+  $('crop-image').style.filter = '';
+  if ($('range-brightness')) $('range-brightness').value = 100;
+  if ($('range-contrast'))   $('range-contrast').value   = 100;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -473,7 +562,6 @@ function resetCaptureScreen() {
 function setupPdfScreen() {
   $('btn-generate-pdf').addEventListener('click', handleGeneratePDF);
 
-  // Live-update preview on setting change
   const settingsFields = [
     'pdf-page-size', 'pdf-orientation', 'pdf-font-size',
     'pdf-include-images', 'pdf-image-size', 'pdf-line-spacing',
@@ -509,7 +597,6 @@ async function renderPdfScreen() {
 }
 
 function updatePdfPreview() {
-  // Simple visual preview (not a real PDF render)
   const preview = $('pdf-preview-content');
   const count   = parseInt($('pdf-question-count').textContent) || 0;
   const rows    = Math.min(count, 5);
@@ -566,26 +653,26 @@ async function collectPdfSettings() {
 }
 
 async function handleGeneratePDF() {
-  if (!state.currentProjectId) { showToast('No active project', 'error'); return; }
+  if (!state.currentProjectId) { showToast('Koi active project nahi', 'error'); return; }
 
   const project   = await getProject(state.currentProjectId);
   const questions = await getQuestionsForProject(state.currentProjectId);
 
   if (questions.length === 0) {
-    showToast('No questions to export', 'info');
+    showToast('Export karne ke liye koi question nahi', 'info');
     return;
   }
 
   const settings = await collectPdfSettings();
   await saveSettings(settings);
 
-  showLoading('Generating PDF…');
+  showLoading('PDF generate ho rahi hai…');
   try {
     const filename = await generatePDF(project, questions, settings);
-    showToast(`PDF saved: ${filename}`, 'success');
+    showToast(`PDF save ho gayi: ${filename}`, 'success');
   } catch (err) {
     console.error(err);
-    showToast('PDF generation failed', 'error');
+    showToast('PDF generate karne mein problem aayi', 'error');
   } finally {
     hideLoading();
   }
@@ -626,13 +713,11 @@ document.addEventListener('click', async e => {
     closeModal(closeBtn.dataset.modalClose);
   }
 
-  // Click outside modal to close
   if (overlay && e.target === overlay) {
     closeModal(overlay.id);
   }
 });
 
-// ── Confirm dialog ────────────────────────────────────────────
 function showConfirm(message, onConfirm) {
   $('confirm-message').textContent = message;
   showModal('modal-confirm', async () => {
@@ -651,7 +736,7 @@ function showToast(message, type = 'info', duration = 3000) {
   toast.className = `toast toast-${type}`;
 
   const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'i';
-  toast.innerHTML = `<span style="font-weight:600;color:${type === 'success' ? 'var(--teal)' : type === 'error' ? 'var(--danger)' : 'var(--amber)'}">${icon}</span> ${escHtml(message)}`;
+  toast.innerHTML = `<span style="font-weight:600;color:${type === 'success' ? 'var(--teal)' : type === 'error' ? 'var(--danger)' : 'var(--amber)'}\">${icon}</span> ${escHtml(message)}`;
 
   container.appendChild(toast);
 
@@ -697,11 +782,11 @@ function relDate(ts) {
   if (!ts) return '';
   const diff = Date.now() - ts;
   const m = Math.floor(diff / 60000);
-  if (m < 1)   return 'just now';
-  if (m < 60)  return `${m}m ago`;
+  if (m < 1)   return 'abhi abhi';
+  if (m < 60)  return `${m}m pehle`;
   const h = Math.floor(m / 60);
-  if (h < 24)  return `${h}h ago`;
+  if (h < 24)  return `${h}h pehle`;
   const d = Math.floor(h / 24);
-  if (d < 30)  return `${d}d ago`;
-  return new Date(ts).toLocaleDateString();
+  if (d < 30)  return `${d}d pehle`;
+  return new Date(ts).toLocaleDateString('hi-IN');
 }
