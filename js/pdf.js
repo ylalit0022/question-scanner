@@ -1,26 +1,18 @@
 /**
  * pdf.js — Browser-side PDF generation via jsPDF
  *
- * No server. No API. Runs 100% in the user's browser.
- * jsPDF is loaded from CDN at runtime.
+ * PDF mein sirf cropped images show hongi — ek row mein ek image.
+ * Koi text, description ya answer lines nahi.
  */
 
 import { blobToURL } from './db.js';
 
-/**
- * Generate and download a PDF for a project's questions.
- *
- * @param {Object} project   - { id, name, ... }
- * @param {Array}  questions - [{ id, text, croppedBlob, ... }]
- * @param {Object} settings  - PDF settings from IndexedDB
- */
 export async function generatePDF(project, questions, settings) {
   const { jsPDF } = window.jspdf;
 
   const isPortrait = settings.orientation !== 'landscape';
   const pageSize   = settings.pageSize || 'A4';
   const margin     = Number(settings.marginMm) || 15;
-  const fontSize   = Number(settings.fontSize) || 12;
 
   const doc = new jsPDF({
     orientation: isPortrait ? 'p' : 'l',
@@ -28,164 +20,109 @@ export async function generatePDF(project, questions, settings) {
     format:      pageSize.toLowerCase(),
   });
 
-  const PAGE_W = doc.internal.pageSize.getWidth();
-  const PAGE_H = doc.internal.pageSize.getHeight();
+  const PAGE_W  = doc.internal.pageSize.getWidth();
+  const PAGE_H  = doc.internal.pageSize.getHeight();
   const usableW = PAGE_W - margin * 2;
-
-  // ── Line-spacing multiplier ──────────────────────────────
-  const lineGaps = { compact: 5, normal: 7, spacious: 10 };
-  const lineGap  = lineGaps[settings.lineSpacing] || 7;
-
-  // ── Fonts / sizes ────────────────────────────────────────
-  const headerFontSize = Math.min(fontSize + 2, 16);
-  const bodyFontSize   = fontSize;
-  const metaFontSize   = Math.max(fontSize - 2, 8);
 
   let yPos = margin;
 
   // ── Optional header ──────────────────────────────────────
   if (settings.headerText?.trim()) {
-    doc.setFontSize(metaFontSize);
+    doc.setFontSize(9);
     doc.setTextColor(120, 120, 120);
     doc.text(settings.headerText.trim(), margin, yPos, { align: 'left' });
-    doc.text(`${new Date().toLocaleDateString()}`, PAGE_W - margin, yPos, { align: 'right' });
+    doc.text(new Date().toLocaleDateString(), PAGE_W - margin, yPos, { align: 'right' });
     yPos += 5;
     doc.setDrawColor(200, 200, 200);
     doc.line(margin, yPos, PAGE_W - margin, yPos);
-    yPos += 8;
+    yPos += 7;
   }
 
   // ── Project title ────────────────────────────────────────
-  doc.setFontSize(headerFontSize);
+  doc.setFontSize(14);
   doc.setTextColor(30, 30, 30);
   doc.setFont('helvetica', 'bold');
   doc.text(project.name || 'Untitled Project', margin, yPos);
-  yPos += headerFontSize * 0.5 + 2;
+  yPos += 7;
 
-  doc.setFontSize(metaFontSize);
-  doc.setTextColor(130, 130, 130);
+  doc.setFontSize(9);
+  doc.setTextColor(140, 140, 140);
   doc.setFont('helvetica', 'normal');
   doc.text(
-    `${questions.length} question${questions.length !== 1 ? 's' : ''}  ·  Generated ${new Date().toLocaleDateString()}`,
+    `${questions.length} question${questions.length !== 1 ? 's' : ''}  ·  ${new Date().toLocaleDateString()}`,
     margin, yPos
   );
-  yPos += 10;
+  yPos += 6;
 
-  doc.setDrawColor(180, 180, 180);
+  doc.setDrawColor(200, 200, 200);
   doc.line(margin, yPos, PAGE_W - margin, yPos);
   yPos += 8;
 
-  // ── Questions loop ────────────────────────────────────────
+  // ── Images — one per row ─────────────────────────────────
   for (let i = 0; i < questions.length; i++) {
-    const q       = questions[i];
-    const qNum    = settings.showNumbers ? `${i + 1}.  ` : '';
-    const qText   = q.text || '(no text)';
-    const fullText = qNum + qText;
+    const q = questions[i];
 
-    doc.setFontSize(bodyFontSize);
-    doc.setTextColor(30, 30, 30);
-    doc.setFont('helvetica', 'normal');
+    if (!q.croppedBlob) continue; // skip if no image
 
-    // Wrap text to usable width
-    const lines = doc.splitTextToSize(fullText, usableW);
-    const textH = lines.length * (bodyFontSize * 0.35 + 1.5);
+    try {
+      const dataURL = await blobToDataURL(q.croppedBlob);
+      const imgInfo = await getImageDimensions(dataURL);
 
-    // Image dimensions
-    let imgW = 0, imgH = 0;
-    if (settings.includeImages && q.croppedBlob) {
-      const imgSizes = { small: 35, medium: 55, large: 75, full: usableW };
-      imgW = imgSizes[settings.imageSize] || 55;
-      imgH = imgW; // will be adjusted after loading
-    }
+      // Scale image to fit full usable width
+      const aspect = imgInfo.height / imgInfo.width;
+      const imgW   = usableW;
+      const imgH   = imgW * aspect;
 
-    // Estimate row height
-    const answerH = settings.showAnswerLines
-      ? (Number(settings.answerLines) || 3) * lineGap + 4
-      : 0;
-
-    const rowH = Math.max(textH + answerH + 6, imgH + 6);
-
-    // Page break?
-    if (yPos + rowH > PAGE_H - margin - 10) {
-      doc.addPage();
-      yPos = margin;
-    }
-
-    const rowStartY = yPos;
-
-    // ── Image (if any) ──────────────────────────────────
-    if (settings.includeImages && q.croppedBlob) {
-      try {
-        const dataURL = await blobToDataURL(q.croppedBlob);
-        const imgInfo = await getImageDimensions(dataURL);
-        const aspect  = imgInfo.height / imgInfo.width;
-        imgH = imgW * aspect;
-
-        const imgX = PAGE_W - margin - imgW;
-        doc.addImage(dataURL, 'JPEG', imgX, yPos, imgW, imgH);
-      } catch (err) {
-        console.warn('Failed to embed image for question', i + 1, err);
+      // Page break check
+      if (yPos + imgH > PAGE_H - margin - 10) {
+        doc.addPage();
+        yPos = margin;
       }
-    }
 
-    // ── Question text ────────────────────────────────────
-    const textAreaW = settings.includeImages && q.croppedBlob
-      ? usableW - imgW - 6
-      : usableW;
-
-    const wrappedLines = doc.splitTextToSize(fullText, textAreaW);
-    doc.setFontSize(bodyFontSize);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    doc.text(wrappedLines, margin, yPos + bodyFontSize * 0.35);
-
-    const textBottom = yPos + wrappedLines.length * (bodyFontSize * 0.35 + 1.5);
-    yPos = textBottom + 3;
-
-    // ── Answer lines ─────────────────────────────────────
-    if (settings.showAnswerLines) {
-      const numLines = Number(settings.answerLines) || 3;
-      doc.setDrawColor(210, 210, 210);
-      for (let l = 0; l < numLines; l++) {
-        const lineY = yPos + l * lineGap;
-        doc.line(margin + 4, lineY, margin + textAreaW - 4, lineY);
+      // Question number (small, top-left corner of image)
+      if (settings.showNumbers) {
+        doc.setFontSize(8);
+        doc.setTextColor(160, 160, 160);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Q${i + 1}`, margin, yPos + 3);
+        // Draw image slightly indented for number
+        doc.addImage(dataURL, 'JPEG', margin, yPos + 5, imgW, imgH);
+        yPos += imgH + 5;
+      } else {
+        doc.addImage(dataURL, 'JPEG', margin, yPos, imgW, imgH);
+        yPos += imgH;
       }
-      yPos += numLines * lineGap + 2;
-    }
 
-    // Ensure yPos is at least below image
-    const rowEndY = rowStartY + Math.max(imgH || 0, yPos - rowStartY);
-    yPos = Math.max(yPos, rowEndY);
+      // Gap between images
+      if (i < questions.length - 1) {
+        doc.setDrawColor(230, 230, 230);
+        doc.line(margin, yPos + 3, PAGE_W - margin, yPos + 3);
+        yPos += 10;
+      } else {
+        yPos += 8;
+      }
 
-    // Question separator
-    if (i < questions.length - 1) {
-      yPos += 4;
-      doc.setDrawColor(235, 235, 235);
-      doc.line(margin, yPos, PAGE_W - margin, yPos);
-      yPos += 6;
-    } else {
-      yPos += 8;
+    } catch (err) {
+      console.warn('Image embed failed for Q' + (i + 1), err);
     }
   }
 
-  // ── Optional footer ──────────────────────────────────────
+  // ── Footer ───────────────────────────────────────────────
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
-    doc.setFontSize(metaFontSize - 1);
-    doc.setTextColor(170, 170, 170);
+    doc.setFontSize(8);
+    doc.setTextColor(180, 180, 180);
 
     if (settings.footerText?.trim()) {
       doc.text(settings.footerText.trim(), margin, PAGE_H - 8);
     }
-
     doc.text(`${p} / ${totalPages}`, PAGE_W - margin, PAGE_H - 8, { align: 'right' });
   }
 
   // ── Download ─────────────────────────────────────────────
   const fileName = `${slugify(project.name || 'export')}_${datestamp()}.pdf`;
   doc.save(fileName);
-
   return fileName;
 }
 

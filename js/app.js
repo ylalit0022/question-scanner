@@ -335,9 +335,9 @@ async function editQuestion(id) {
   state.editingQuestionId = id;
   const q = await getQuestion(id);
   if (!q) return;
+  // Allow editing the internal label (optional note, not shown in PDF)
   showModal('modal-question-text', async () => {
-    const text = $('input-question-text').value.trim();
-    if (!text) { showToast('Question text zaroor chahiye', 'error'); return false; }
+    const text = $('input-question-text').value.trim() || q.text || `Q${id.slice(-4)}`;
     q.text = text;
     await saveQuestion(q);
     await renderQuestionsList();
@@ -493,52 +493,48 @@ async function saveCroppedQuestion() {
   if (!cropper) { showToast('Pehle ek image select karein', 'error'); return; }
   if (!state.currentProjectId) { showToast('Koi active project nahi', 'error'); return; }
 
-  showModal('modal-question-text', async () => {
-    const text = $('input-question-text').value.trim();
-    if (!text) { showToast('Question text zaroor chahiye', 'error'); return false; }
+  // Seedha save — koi modal/text nahi
+  showLoading('Image save ho rahi hai…');
+  try {
+    const croppedBlob = await getCroppedBlob(1600);
 
-    showLoading('Question save ho raha hai…');
-    try {
-      const croppedBlob = await getCroppedBlob(1600);
+    const canvas    = cropper.getCroppedCanvas({ maxWidth: 160, maxHeight: 160 });
+    const thumbBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
 
-      const canvas   = cropper.getCroppedCanvas({ maxWidth: 160, maxHeight: 160 });
-      const thumbBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
+    // Auto-number as label (used internally only, not shown in PDF)
+    const existingQs = await getQuestionsForProject(state.currentProjectId);
+    const autoLabel  = `Q${existingQs.length + 1}`;
 
-      const question = {
-        id:        state.editingQuestionId || crypto.randomUUID(),
-        projectId: state.currentProjectId,
-        text,
-        croppedBlob,
-        thumbBlob,
-        createdAt: Date.now(),
-        order:     Date.now(),
-      };
+    const question = {
+      id:        state.editingQuestionId || crypto.randomUUID(),
+      projectId: state.currentProjectId,
+      text:      autoLabel,
+      croppedBlob,
+      thumbBlob,
+      createdAt: Date.now(),
+      order:     Date.now(),
+    };
 
-      await saveQuestion(question);
+    await saveQuestion(question);
 
-      const project = await getProject(state.currentProjectId);
-      if (project) {
-        const qs = await getQuestionsForProject(state.currentProjectId);
-        project.questionCount = qs.length;
-        await saveProject(project);
-      }
-
-      destroyCropper();
-      resetCaptureScreen();
-      screen('questions');
-      await renderQuestionsList();
-      showToast('Question save ho gaya ✓', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Question save karne mein problem aayi', 'error');
-    } finally {
-      hideLoading();
+    const project = await getProject(state.currentProjectId);
+    if (project) {
+      const qs = await getQuestionsForProject(state.currentProjectId);
+      project.questionCount = qs.length;
+      await saveProject(project);
     }
-    return true;
-  });
 
-  $('input-question-text').value = '';
-  setTimeout(() => $('input-question-text').focus(), 80);
+    destroyCropper();
+    resetCaptureScreen();
+    screen('questions');
+    await renderQuestionsList();
+    showToast(`${autoLabel} save ho gayi ✓`, 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Image save karne mein problem aayi', 'error');
+  } finally {
+    hideLoading();
+  }
 }
 
 function resetCaptureScreen() {
