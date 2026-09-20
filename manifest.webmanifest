@@ -1,0 +1,27 @@
+{
+  "name": "DocScanner — Question Scanner",
+  "short_name": "DocScanner",
+  "description": "Scan, crop, organise and export question papers as PDF. Works offline. Photos stay on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1A2332",
+  "theme_color": "#1A2332",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' fill='%231A2332' rx='24'/%3E%3Cpath d='M56 36h52l32 32v88H56z' fill='none' stroke='%2300C9A7' stroke-width='8' stroke-linejoin='round'/%3E%3Cpath d='M108 36v32h32' fill='none' stroke='%2300C9A7' stroke-width='8' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cline x1='72' y1='90' x2='120' y2='90' stroke='%2300C9A7' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='72' y1='106' x2='120' y2='106' stroke='%2300C9A7' stroke-width='6' stroke-linecap='round'/%3E%3Cline x1='72' y1='122' x2='100' y2='122' stroke='%2300C9A7' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' fill='%231A2332' rx='64'/%3E%3Cpath d='M149 96h138l85 85v235H149z' fill='none' stroke='%2300C9A7' stroke-width='20' stroke-linejoin='round'/%3E%3Cpath d='M287 96v85h85' fill='none' stroke='%2300C9A7' stroke-width='20' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cline x1='191' y1='240' x2='320' y2='240' stroke='%2300C9A7' stroke-width='16' stroke-linecap='round'/%3E%3Cline x1='191' y1='283' x2='320' y2='283' stroke='%2300C9A7' stroke-width='16' stroke-linecap='round'/%3E%3Cline x1='191' y1='326' x2='266' y2='326' stroke='%2300C9A7' stroke-width='16' stroke-linecap='round'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["education", "productivity", "utilities"],
+  "screenshots": []
+}

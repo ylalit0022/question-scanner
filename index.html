@@ -9,835 +9,32 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DocScanner">
+
   <title>DocScanner</title>
+  <link rel="manifest" href="manifest.webmanifest">
+
+  <!-- Cropper.js CSS (CDN — can be self-hosted for full offline) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
+
+  <!-- Google Fonts (optional — app has system fallbacks) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
-  <style>
-/* ============================================================
-   DOC SCANNER — Static PWA Stylesheet
-   Stack: HTML5 / CSS3 / Vanilla JS / IndexedDB / jsPDF
-   ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-
-/* ── Tokens ─────────────────────────────────────────────── */
-:root {
-  --navy:        #1A2332;
-  --navy-mid:    #243044;
-  --navy-light:  #2E3D56;
-  --teal:        #00C9A7;
-  --teal-dim:    #009B82;
-  --amber:       #E8A838;
-  --amber-dim:   #C4882A;
-  --slate:       #8B9BB4;
-  --off-white:   #F8F6F1;
-  --white:       #FFFFFF;
-  --danger:      #E85858;
-  --danger-dim:  #B84040;
-  --surface:     #243044;
-  --surface-2:   #2E3D56;
-  --border:      rgba(139,155,180,.18);
-  --shadow:      0 2px 12px rgba(0,0,0,.35);
-
-  --font-ui:     'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono:   'IBM Plex Mono', 'Courier New', monospace;
-
-  --radius-sm:   4px;
-  --radius:      8px;
-  --radius-lg:   14px;
-
-  --transition:  180ms ease;
-}
-
-/* ── Reset ───────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html {
-  font-size: 16px;
-  -webkit-tap-highlight-color: transparent;
-}
-
-body {
-  font-family: var(--font-ui);
-  background: var(--navy);
-  color: var(--off-white);
-  min-height: 100dvh;
-  overflow-x: hidden;
-}
-
-/* ── Scrollbar ───────────────────────────────────────────── */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: var(--navy); }
-::-webkit-scrollbar-thumb { background: var(--navy-light); border-radius: 2px; }
-
-/* ── App Shell ───────────────────────────────────────────── */
-#app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100dvh;
-  max-width: 540px;
-  margin: 0 auto;
-  position: relative;
-}
-
-/* ── Header ──────────────────────────────────────────────── */
-#app-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: var(--navy);
-  border-bottom: 1px solid var(--border);
-  padding: 0 16px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.header-logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: -.01em;
-  color: var(--off-white);
-  text-decoration: none;
-}
-
-.header-logo svg {
-  flex-shrink: 0;
-}
-
-.header-logo span em {
-  color: var(--teal);
-  font-style: normal;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-/* ── Bottom Nav ──────────────────────────────────────────── */
-#bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 540px;
-  background: var(--navy-mid);
-  border-top: 1px solid var(--border);
-  display: flex;
-  z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-.nav-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 10px 4px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--slate);
-  font-family: var(--font-ui);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: .02em;
-  transition: color var(--transition);
-}
-
-.nav-btn svg { transition: transform var(--transition); }
-
-.nav-btn:hover,
-.nav-btn.active {
-  color: var(--teal);
-}
-
-.nav-btn.active svg {
-  transform: translateY(-1px);
-}
-
-/* ── Main Content ────────────────────────────────────────── */
-#main-content {
-  flex: 1;
-  padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  overflow-y: auto;
-}
-
-/* ── Screens ─────────────────────────────────────────────── */
-.screen {
-  display: none;
-  padding: 20px 16px;
-  animation: fadeIn 200ms ease;
-}
-
-.screen.active { display: block; }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Section Headers ─────────────────────────────────────── */
-.section-header {
-  margin-bottom: 20px;
-}
-
-.section-title {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -.02em;
-  color: var(--off-white);
-  line-height: 1.2;
-}
-
-.section-sub {
-  margin-top: 4px;
-  font-size: 13px;
-  color: var(--slate);
-  line-height: 1.5;
-}
-
-/* ── Buttons ─────────────────────────────────────────────── */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 10px 18px;
-  border: none;
-  border-radius: var(--radius);
-  font-family: var(--font-ui);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--transition);
-  white-space: nowrap;
-  text-decoration: none;
-}
-
-.btn-primary {
-  background: var(--teal);
-  color: var(--navy);
-}
-.btn-primary:hover { background: #00DDB8; }
-.btn-primary:active { transform: scale(.97); }
-
-.btn-secondary {
-  background: var(--surface-2);
-  color: var(--off-white);
-  border: 1px solid var(--border);
-}
-.btn-secondary:hover { background: #384F6E; border-color: var(--slate); }
-
-.btn-danger {
-  background: transparent;
-  color: var(--danger);
-  border: 1px solid var(--danger);
-}
-.btn-danger:hover { background: var(--danger); color: var(--white); }
-
-.btn-icon {
-  padding: 8px;
-  background: var(--surface-2);
-  color: var(--slate);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-}
-.btn-icon:hover { color: var(--off-white); border-color: var(--slate); }
-
-.btn-full { width: 100%; }
-.btn-sm { padding: 7px 12px; font-size: 13px; }
-.btn-lg { padding: 14px 24px; font-size: 15px; }
-
-/* ── Cards ───────────────────────────────────────────────── */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.card-actions {
-  display: flex;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-/* ── Form Elements ───────────────────────────────────────── */
-.form-group {
-  margin-bottom: 16px;
-}
-
-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: .04em;
-  color: var(--slate);
-  margin-bottom: 6px;
-  font-family: var(--font-mono);
-}
-
-input[type="text"],
-input[type="number"],
-textarea,
-select {
-  width: 100%;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 12px;
-  color: var(--off-white);
-  font-family: var(--font-ui);
-  font-size: 14px;
-  transition: border-color var(--transition);
-  outline: none;
-  appearance: none;
-  -webkit-appearance: none;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: var(--teal);
-  box-shadow: 0 0 0 3px rgba(0,201,167,.12);
-}
-
-textarea {
-  resize: vertical;
-  min-height: 80px;
-  line-height: 1.5;
-}
-
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238B9BB4' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  padding-right: 32px;
-}
-
-/* ── Tag / Badge ─────────────────────────────────────────── */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 100px;
-  font-size: 11px;
-  font-weight: 500;
-  font-family: var(--font-mono);
-}
-
-.badge-teal { background: rgba(0,201,167,.15); color: var(--teal); }
-.badge-amber { background: rgba(232,168,56,.15); color: var(--amber); }
-.badge-slate { background: rgba(139,155,180,.12); color: var(--slate); }
-.badge-danger { background: rgba(232,88,88,.15); color: var(--danger); }
-
-/* ── Divider ─────────────────────────────────────────────── */
-.divider {
-  height: 1px;
-  background: var(--border);
-  margin: 16px 0;
-}
-
-/* ── Empty State ─────────────────────────────────────────── */
-.empty-state {
-  text-align: center;
-  padding: 48px 24px;
-  color: var(--slate);
-}
-
-.empty-state svg {
-  margin: 0 auto 16px;
-  opacity: .35;
-}
-
-.empty-state p {
-  font-size: 14px;
-  line-height: 1.6;
-}
-
-.empty-state strong {
-  display: block;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--off-white);
-  margin-bottom: 6px;
-  opacity: .7;
-}
-
-/* ── Toast ───────────────────────────────────────────────── */
-#toast-container {
-  position: fixed;
-  bottom: calc(74px + env(safe-area-inset-bottom, 0px));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 500;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  width: calc(100% - 32px);
-  max-width: 400px;
-  pointer-events: none;
-}
-
-.toast {
-  background: var(--navy-mid);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 10px 16px;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: var(--shadow);
-  animation: toastIn 200ms ease;
-  pointer-events: auto;
-  width: 100%;
-}
-
-.toast-success { border-left: 3px solid var(--teal); }
-.toast-error   { border-left: 3px solid var(--danger); }
-.toast-info    { border-left: 3px solid var(--amber); }
-
-@keyframes toastIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ── Modal ───────────────────────────────────────────────── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(10,16,26,.75);
-  backdrop-filter: blur(4px);
-  z-index: 300;
-  display: flex;
-  align-items: flex-end;
-  padding: 16px;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease;
-}
-
-.modal-overlay.open {
-  opacity: 1;
-  pointer-events: all;
-}
-
-.modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius);
-  width: 100%;
-  max-width: 540px;
-  margin: 0 auto;
-  padding: 20px;
-  transform: translateY(20px);
-  transition: transform 200ms ease;
-  max-height: 90dvh;
-  overflow-y: auto;
-}
-
-.modal-overlay.open .modal {
-  transform: translateY(0);
-}
-
-.modal-title {
-  font-size: 17px;
-  font-weight: 600;
-  margin-bottom: 16px;
-  padding-right: 32px;
-  position: relative;
-}
-
-.modal-close {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  background: none;
-  border: none;
-  color: var(--slate);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--radius-sm);
-}
-.modal-close:hover { color: var(--off-white); }
-
-.modal-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 20px;
-}
-
-/* ============================================================
-   SCREEN: HOME / PROJECT LIST
-   ============================================================ */
-.project-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  margin-bottom: 10px;
-  cursor: pointer;
-  transition: border-color var(--transition), background var(--transition);
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.project-card:hover {
-  border-color: var(--teal);
-  background: var(--surface-2);
-}
-
-.project-card-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: var(--radius);
-  background: rgba(0,201,167,.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: var(--teal);
-}
-
-.project-card-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.project-card-name {
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.project-card-meta {
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--slate);
-  font-family: var(--font-mono);
-  display: flex;
-  gap: 10px;
-}
-
-.project-card-arrow {
-  color: var(--slate);
-  flex-shrink: 0;
-}
-
-/* ============================================================
-   SCREEN: CAPTURE / CROP
-   ============================================================ */
-.capture-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius-lg);
-  padding: 32px 24px;
-  text-align: center;
-  cursor: pointer;
-  transition: all var(--transition);
-  margin-bottom: 16px;
-  position: relative;
-  overflow: hidden;
-}
-
-.capture-zone:hover {
-  border-color: var(--teal);
-  background: rgba(0,201,167,.04);
-}
-
-.capture-zone.drag-over {
-  border-color: var(--teal);
-  background: rgba(0,201,167,.08);
-}
-
-.capture-zone input[type="file"] {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
-}
-
-.capture-icon {
-  color: var(--teal);
-  margin: 0 auto 12px;
-}
-
-.capture-label {
-  font-size: 15px;
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-
-.capture-hint {
-  font-size: 12px;
-  color: var(--slate);
-}
-
-/* Cropper container */
-#cropper-container {
-  position: relative;
-  background: #000;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  margin-bottom: 14px;
-}
-
-#crop-image {
-  max-width: 100%;
-  display: block;
-}
-
-.cropper-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
-/* ============================================================
-   SCREEN: QUESTIONS LIST
-   ============================================================ */
-.question-item {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 12px 14px;
-  margin-bottom: 8px;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: default;
-  transition: border-color var(--transition);
-}
-
-.question-item.sortable-ghost {
-  opacity: .4;
-  background: var(--surface-2);
-}
-
-.question-item.sortable-chosen {
-  border-color: var(--teal);
-  box-shadow: var(--shadow);
-}
-
-.drag-handle {
-  color: var(--slate);
-  cursor: grab;
-  padding: 2px 4px;
-  margin-top: 2px;
-  flex-shrink: 0;
-}
-
-.drag-handle:active { cursor: grabbing; }
-
-.question-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.question-num {
-  font-size: 11px;
-  font-family: var(--font-mono);
-  color: var(--teal);
-  margin-bottom: 3px;
-}
-
-.question-text {
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.4;
-  word-break: break-word;
-}
-
-.question-thumb {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--radius-sm);
-  object-fit: cover;
-  flex-shrink: 0;
-  border: 1px solid var(--border);
-}
-
-.question-actions {
-  display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-/* ============================================================
-   SCREEN: PDF SETTINGS
-   ============================================================ */
-.pdf-preview-box {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-  margin-bottom: 16px;
-  aspect-ratio: 210 / 297;
-  background: var(--white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  max-height: 320px;
-}
-
-.pdf-preview-inner {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  padding: 10px;
-  gap: 6px;
-}
-
-.pdf-preview-title {
-  font-size: 8px;
-  color: #222;
-  font-weight: 700;
-  text-align: center;
-  border-bottom: 1px solid #ddd;
-  padding-bottom: 4px;
-  font-family: sans-serif;
-}
-
-.pdf-preview-row {
-  display: flex;
-  gap: 6px;
-  align-items: flex-start;
-}
-
-.pdf-preview-num {
-  font-size: 6px;
-  color: #444;
-  width: 12px;
-  flex-shrink: 0;
-  font-family: monospace;
-}
-
-.pdf-preview-line {
-  flex: 1;
-  height: 1px;
-  background: #eee;
-  margin-top: 3px;
-}
-
-.pdf-preview-img-box {
-  width: 28px;
-  height: 22px;
-  background: #eee;
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-
-/* ============================================================
-   LOADING / SPINNER
-   ============================================================ */
-.spinner {
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--border);
-  border-top-color: var(--teal);
-  border-radius: 50%;
-  animation: spin 600ms linear infinite;
-  margin: 0 auto;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.loading-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(10,16,26,.8);
-  z-index: 400;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  font-size: 14px;
-  color: var(--slate);
-}
-
-/* ============================================================
-   PRIVACY BANNER
-   ============================================================ */
-.privacy-banner {
-  background: rgba(0,201,167,.06);
-  border: 1px solid rgba(0,201,167,.2);
-  border-radius: var(--radius);
-  padding: 10px 14px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--slate);
-  line-height: 1.5;
-}
-
-.privacy-banner svg { flex-shrink: 0; margin-top: 1px; color: var(--teal); }
-
-/* ============================================================
-   DRAG-REORDER INSTRUCTION
-   ============================================================ */
-.reorder-hint {
-  text-align: center;
-  font-size: 12px;
-  color: var(--slate);
-  padding: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-/* ============================================================
-   RESPONSIVE TWEAKS
-   ============================================================ */
-@media (min-width: 480px) {
-  .section-title { font-size: 22px; }
-  .modal-actions { justify-content: flex-end; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
-}
-  </style>
+  <!-- App stylesheet -->
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+<!-- ══════════════════════════════════════════════════════════
+     APP SHELL
+     ══════════════════════════════════════════════════════════ -->
 <div id="app">
+
+  <!-- ── Header ──────────────────────────────────────────── -->
   <header id="app-header">
     <a href="#" class="header-logo" id="btn-home-logo" onclick="return false;">
+      <!-- Doc icon -->
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
@@ -857,34 +54,47 @@ select {
     </div>
   </header>
 
+  <!-- ── Main Content ─────────────────────────────────────── -->
   <main id="main-content">
 
-    <!-- HOME -->
+    <!-- ════════════════════════════════════════════════════
+         SCREEN: HOME
+         ════════════════════════════════════════════════════ -->
     <section id="screen-home" class="screen active">
+
       <div class="privacy-banner">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         </svg>
         <span>Photos are processed and stored <strong>locally in your browser</strong>. Nothing is uploaded to any server.</span>
       </div>
+
       <div class="section-header">
         <div class="section-title">Projects</div>
         <div class="section-sub">Each project holds a set of scanned questions.</div>
       </div>
+
       <button class="btn btn-primary btn-full" id="btn-new-project" style="margin-bottom:20px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
         New Project
       </button>
+
       <div id="project-list"></div>
+
       <p style="text-align:center;font-size:11px;color:var(--slate);margin-top:24px;line-height:1.6;">
-        Long-press a project card to delete it.<br>Requires HTTPS or localhost for camera access.
+        Long-press a project card to delete it.<br>
+        Requires HTTPS or localhost for camera access.
       </p>
     </section>
 
-    <!-- QUESTIONS -->
+    <!-- ════════════════════════════════════════════════════
+         SCREEN: QUESTIONS
+         ════════════════════════════════════════════════════ -->
     <section id="screen-questions" class="screen">
+
       <div class="section-header">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
           <div class="section-title">Questions</div>
@@ -892,6 +102,7 @@ select {
         </div>
         <div class="section-sub">Drag the handle to reorder. Tap the pencil to edit.</div>
       </div>
+
       <div class="reorder-hint">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/>
@@ -900,21 +111,29 @@ select {
         </svg>
         Hold the ≡ handle and drag to reorder
       </div>
+
       <div id="questions-list"></div>
+
       <button class="btn btn-primary btn-full" id="btn-add-question" style="margin-top:12px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          <line x1="12" y1="5" x2="12" y2="19"/>
+          <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
         Add Question
       </button>
     </section>
 
-    <!-- CAPTURE -->
+    <!-- ════════════════════════════════════════════════════
+         SCREEN: CAPTURE / CROP
+         ════════════════════════════════════════════════════ -->
     <section id="screen-capture" class="screen">
+
       <div class="section-header">
         <div class="section-title">Capture &amp; Crop</div>
         <div class="section-sub">Take a photo or upload an image of a question, then crop it precisely.</div>
       </div>
+
+      <!-- Drop / capture zone -->
       <div class="capture-zone" id="capture-zone">
         <input type="file" id="file-input" accept="image/*" capture="environment">
         <div class="capture-icon">
@@ -926,18 +145,36 @@ select {
         <div class="capture-label">Take photo or upload image</div>
         <div class="capture-hint">JPEG, PNG, WebP · Camera or gallery</div>
       </div>
+
+      <!-- Cropper.js container (hidden until image loaded) -->
       <div id="cropper-wrapper" style="display:none;">
         <div id="cropper-container">
           <img id="crop-image" alt="Image to crop" style="max-width:100%;display:block;">
         </div>
       </div>
+
+      <!-- Crop tool controls -->
       <div id="crop-controls" style="display:none;" class="cropper-actions">
-        <button class="btn btn-secondary btn-sm" id="btn-rotate-ccw" title="Rotate left">↺ CCW</button>
-        <button class="btn btn-secondary btn-sm" id="btn-rotate-cw" title="Rotate right">↻ CW</button>
-        <button class="btn btn-secondary btn-sm" id="btn-flip-h" title="Flip H">⇄ Flip H</button>
-        <button class="btn btn-secondary btn-sm" id="btn-flip-v" title="Flip V">⇅ Flip V</button>
-        <button class="btn btn-secondary btn-sm" id="btn-crop-reset">Reset</button>
+        <button class="btn btn-secondary btn-sm" id="btn-rotate-ccw" title="Rotate left">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 .49-4"/>
+          </svg>
+          ↺
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btn-rotate-cw" title="Rotate right">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-.49-4"/>
+          </svg>
+          ↻
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btn-flip-h" title="Flip horizontal">⇄</button>
+        <button class="btn btn-secondary btn-sm" id="btn-flip-v" title="Flip vertical">⇅</button>
+        <button class="btn btn-secondary btn-sm" id="btn-crop-reset" title="Reset crop">Reset</button>
       </div>
+
+      <!-- Save / cancel -->
       <div id="crop-save-row" style="display:none;gap:10px;">
         <button class="btn btn-secondary" id="btn-cancel-crop" style="flex:1;">Cancel</button>
         <button class="btn btn-primary" id="btn-save-crop" style="flex:2;">
@@ -949,29 +186,46 @@ select {
       </div>
     </section>
 
-    <!-- PDF -->
+    <!-- ════════════════════════════════════════════════════
+         SCREEN: PDF SETTINGS
+         ════════════════════════════════════════════════════ -->
     <section id="screen-pdf" class="screen">
+
       <div class="section-header">
         <div class="section-title">Export PDF</div>
-        <div class="section-sub">Configure the output and download. Generated entirely in your browser.</div>
+        <div class="section-sub">Configure the output and download a PDF. Generated entirely in your browser.</div>
       </div>
+
+      <!-- Live preview -->
       <div class="pdf-preview-box">
         <div class="pdf-preview-inner" id="pdf-preview-content">
           <div class="pdf-preview-title">Preview</div>
         </div>
       </div>
+
+      <!-- Settings form -->
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">PAGE</div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group" style="margin-bottom:0">
             <label for="pdf-page-size">SIZE</label>
-            <select id="pdf-page-size"><option value="A4">A4</option><option value="A3">A3</option><option value="letter">US Letter</option><option value="legal">US Legal</option></select>
+            <select id="pdf-page-size">
+              <option value="A4">A4</option>
+              <option value="A3">A3</option>
+              <option value="letter">US Letter</option>
+              <option value="legal">US Legal</option>
+            </select>
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label for="pdf-orientation">ORIENTATION</label>
-            <select id="pdf-orientation"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select>
+            <select id="pdf-orientation">
+              <option value="portrait">Portrait</option>
+              <option value="landscape">Landscape</option>
+            </select>
           </div>
         </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
           <div class="form-group" style="margin-bottom:0">
             <label for="pdf-font-size">FONT SIZE (pt)</label>
@@ -983,27 +237,39 @@ select {
           </div>
         </div>
       </div>
+
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">IMAGES</div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <label for="pdf-include-images" style="margin:0;font-family:var(--font-ui);font-size:14px;color:var(--off-white);letter-spacing:0;">Include scanned images</label>
           <input type="checkbox" id="pdf-include-images" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--teal);">
         </div>
+
         <div class="form-group" style="margin-bottom:0">
           <label for="pdf-image-size">IMAGE SIZE</label>
-          <select id="pdf-image-size"><option value="small">Small (35mm)</option><option value="medium" selected>Medium (55mm)</option><option value="large">Large (75mm)</option><option value="full">Full width</option></select>
+          <select id="pdf-image-size">
+            <option value="small">Small (35mm)</option>
+            <option value="medium" selected>Medium (55mm)</option>
+            <option value="large">Large (75mm)</option>
+            <option value="full">Full width</option>
+          </select>
         </div>
       </div>
+
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">QUESTIONS</div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <label for="pdf-show-numbers" style="margin:0;font-family:var(--font-ui);font-size:14px;color:var(--off-white);letter-spacing:0;">Number questions</label>
           <input type="checkbox" id="pdf-show-numbers" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--teal);">
         </div>
+
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
           <label for="pdf-show-answers" style="margin:0;font-family:var(--font-ui);font-size:14px;color:var(--off-white);letter-spacing:0;">Include answer lines</label>
           <input type="checkbox" id="pdf-show-answers" checked style="width:18px;height:18px;cursor:pointer;accent-color:var(--teal);">
         </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group" style="margin-bottom:0">
             <label for="pdf-answer-lines">ANSWER LINES</label>
@@ -1011,12 +277,18 @@ select {
           </div>
           <div class="form-group" style="margin-bottom:0">
             <label for="pdf-line-spacing">LINE SPACING</label>
-            <select id="pdf-line-spacing"><option value="compact">Compact</option><option value="normal" selected>Normal</option><option value="spacious">Spacious</option></select>
+            <select id="pdf-line-spacing">
+              <option value="compact">Compact</option>
+              <option value="normal" selected>Normal</option>
+              <option value="spacious">Spacious</option>
+            </select>
           </div>
         </div>
       </div>
+
       <div class="card">
         <div style="font-size:13px;font-weight:600;margin-bottom:14px;color:var(--slate);font-family:var(--font-mono);letter-spacing:.04em;">HEADER &amp; FOOTER</div>
+
         <div class="form-group">
           <label for="pdf-header">HEADER TEXT</label>
           <input type="text" id="pdf-header" placeholder="e.g. School name, exam title…" maxlength="120">
@@ -1026,10 +298,12 @@ select {
           <input type="text" id="pdf-footer" placeholder="e.g. Confidential, instructions…" maxlength="120">
         </div>
       </div>
+
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <span id="pdf-question-count" class="badge badge-teal">0</span>
         <span style="font-size:13px;color:var(--slate);">questions will be exported</span>
       </div>
+
       <button class="btn btn-primary btn-full btn-lg" id="btn-generate-pdf">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -1039,38 +313,69 @@ select {
         </svg>
         Generate &amp; Download PDF
       </button>
+
       <p style="text-align:center;font-size:11px;color:var(--slate);margin-top:14px;line-height:1.6;">
-        PDF generated in your browser via jsPDF. No data uploaded anywhere.
+        PDF is generated entirely in your browser via jsPDF.<br>
+        No data is uploaded anywhere.
       </p>
     </section>
 
-  </main>
+  </main><!-- /#main-content -->
 
+  <!-- ── Bottom Navigation ──────────────────────────────── -->
   <nav id="bottom-nav">
     <button class="nav-btn active" data-screen="home">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
       Projects
     </button>
     <button class="nav-btn" data-screen="capture">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
       Capture
     </button>
     <button class="nav-btn" data-screen="questions">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <line x1="8" y1="6" x2="21" y2="6"/>
+        <line x1="8" y1="12" x2="21" y2="12"/>
+        <line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/>
+        <line x1="3" y1="12" x2="3.01" y2="12"/>
+        <line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
       Questions
     </button>
     <button class="nav-btn" data-screen="pdf">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <line x1="9" y1="15" x2="15" y2="15"/>
+      </svg>
       Export PDF
     </button>
   </nav>
-</div>
 
-<!-- Modals -->
+</div><!-- /#app -->
+
+<!-- ══════════════════════════════════════════════════════════
+     MODALS
+     ══════════════════════════════════════════════════════════ -->
+
+<!-- New Project -->
 <div id="modal-project" class="modal-overlay">
   <div class="modal">
-    <div class="modal-title">New Project
-      <button class="modal-close" data-modal-close="modal-project"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="modal-title">
+      New Project
+      <button class="modal-close" data-modal-close="modal-project">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
     </div>
     <div class="form-group">
       <label for="input-project-name">PROJECT NAME</label>
@@ -1083,12 +388,20 @@ select {
   </div>
 </div>
 
+<!-- Question Text -->
 <div id="modal-question-text" class="modal-overlay">
   <div class="modal">
-    <div class="modal-title">Question Text
-      <button class="modal-close" data-modal-close="modal-question-text"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="modal-title">
+      Question Text
+      <button class="modal-close" data-modal-close="modal-question-text">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
     </div>
-    <p style="font-size:13px;color:var(--slate);margin-bottom:14px;line-height:1.5;">Type the question text — this will appear in the PDF alongside the image.</p>
+    <p style="font-size:13px;color:var(--slate);margin-bottom:14px;line-height:1.5;">
+      Type the question text — this will appear in the PDF alongside the image.
+    </p>
     <div class="form-group">
       <label for="input-question-text">QUESTION</label>
       <textarea id="input-question-text" placeholder="e.g. Describe the process of photosynthesis…" rows="4" maxlength="800"></textarea>
@@ -1100,10 +413,16 @@ select {
   </div>
 </div>
 
+<!-- Confirm Delete -->
 <div id="modal-confirm" class="modal-overlay">
   <div class="modal">
-    <div class="modal-title">Confirm
-      <button class="modal-close" data-modal-close="modal-confirm"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    <div class="modal-title">
+      Confirm
+      <button class="modal-close" data-modal-close="modal-confirm">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
     </div>
     <p id="confirm-message" style="font-size:14px;color:var(--slate);line-height:1.6;"></p>
     <div class="modal-actions">
@@ -1113,1258 +432,56 @@ select {
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════
+     TOAST CONTAINER
+     ══════════════════════════════════════════════════════════ -->
 <div id="toast-container"></div>
 
+<!-- ══════════════════════════════════════════════════════════
+     EXTERNAL LIBRARIES (CDN — self-host for full offline)
+     Cropper.js  — image cropping
+     jsPDF       — browser-side PDF generation
+     SortableJS  — drag-to-reorder
+     ══════════════════════════════════════════════════════════ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
 
-<script type="module">
-// === db.js ===
-/**
- * db.js — IndexedDB wrapper (client-side only, no backend)
- *
- * Stores:
- *  • projects   — metadata per project
- *  • questions  — question items with cropped image Blobs
- *  • settings   — PDF settings per project
- */
+<!-- ── App entry point (ES modules) ─────────────────────── -->
+<script type="module" src="js/app.js"></script>
 
-const DB_NAME    = 'DocScannerDB';
-const DB_VERSION = 1;
-
-let _db = null;
-
-export function openDB() {
-  if (_db) return Promise.resolve(_db);
-
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-    req.onupgradeneeded = e => {
-      const db = e.target.result;
-
-      // ── projects store ──────────────────────────────────
-      if (!db.objectStoreNames.contains('projects')) {
-        const ps = db.createObjectStore('projects', { keyPath: 'id' });
-        ps.createIndex('updatedAt', 'updatedAt', { unique: false });
-      }
-
-      // ── questions store ─────────────────────────────────
-      if (!db.objectStoreNames.contains('questions')) {
-        const qs = db.createObjectStore('questions', { keyPath: 'id' });
-        qs.createIndex('projectId', 'projectId', { unique: false });
-        qs.createIndex('order',     'order',     { unique: false });
-      }
-
-      // ── settings store ──────────────────────────────────
-      if (!db.objectStoreNames.contains('settings')) {
-        db.createObjectStore('settings', { keyPath: 'projectId' });
-      }
-    };
-
-    req.onsuccess = e => { _db = e.target.result; resolve(_db); };
-    req.onerror   = e => reject(e.target.error);
-  });
-}
-
-// ── Generic helpers ──────────────────────────────────────────
-
-function tx(storeName, mode = 'readonly') {
-  return _db.transaction(storeName, mode).objectStore(storeName);
-}
-
-function promReq(req) {
-  return new Promise((res, rej) => {
-    req.onsuccess = e => res(e.target.result);
-    req.onerror   = e => rej(e.target.error);
-  });
-}
-
-// ── Projects ─────────────────────────────────────────────────
-
-export async function saveProject(project) {
-  await openDB();
-  project.updatedAt = Date.now();
-  return promReq(tx('projects', 'readwrite').put(project));
-}
-
-export async function getProject(id) {
-  await openDB();
-  return promReq(tx('projects').get(id));
-}
-
-export async function getAllProjects() {
-  await openDB();
-  return promReq(tx('projects').getAll());
-}
-
-export async function deleteProject(id) {
-  await openDB();
-  // delete all questions first
-  const questions = await getQuestionsForProject(id);
-  const qtx = _db.transaction('questions', 'readwrite').objectStore('questions');
-  for (const q of questions) qtx.delete(q.id);
-  // delete settings
-  const stx = _db.transaction('settings', 'readwrite').objectStore('settings');
-  stx.delete(id);
-  // delete project
-  return promReq(tx('projects', 'readwrite').delete(id));
-}
-
-// ── Questions ────────────────────────────────────────────────
-
-export async function saveQuestion(question) {
-  await openDB();
-  if (!question.id) question.id = crypto.randomUUID();
-  if (question.order === undefined) question.order = Date.now();
-  return promReq(tx('questions', 'readwrite').put(question));
-}
-
-export async function getQuestion(id) {
-  await openDB();
-  return promReq(tx('questions').get(id));
-}
-
-export async function getQuestionsForProject(projectId) {
-  await openDB();
-  const all = await promReq(
-    tx('questions').index('projectId').getAll(projectId)
-  );
-  return all.sort((a, b) => a.order - b.order);
-}
-
-export async function deleteQuestion(id) {
-  await openDB();
-  return promReq(tx('questions', 'readwrite').delete(id));
-}
-
-export async function reorderQuestions(projectId, orderedIds) {
-  await openDB();
-  const qtx = _db.transaction('questions', 'readwrite').objectStore('questions');
-  return new Promise((resolve, reject) => {
-    let done = 0;
-    const total = orderedIds.length;
-    if (total === 0) { resolve(); return; }
-
-    orderedIds.forEach((id, idx) => {
-      const req = qtx.get(id);
-      req.onsuccess = e => {
-        const q = e.target.result;
-        if (q) {
-          q.order = idx;
-          qtx.put(q);
-        }
-        done++;
-        if (done === total) resolve();
-      };
-      req.onerror = e => reject(e.target.error);
-    });
-  });
-}
-
-// ── PDF Settings ─────────────────────────────────────────────
-
-const DEFAULT_SETTINGS = {
-  pageSize:      'A4',
-  orientation:   'portrait',
-  fontSize:      12,
-  includeImages: true,
-  imageSize:     'medium',
-  lineSpacing:   'normal',
-  headerText:    '',
-  footerText:    '',
-  showNumbers:   true,
-  showAnswerLines: true,
-  answerLines:   3,
-  marginMm:      15,
-};
-
-export async function getSettings(projectId) {
-  await openDB();
-  const s = await promReq(tx('settings').get(projectId));
-  return s ? { ...DEFAULT_SETTINGS, ...s } : { ...DEFAULT_SETTINGS, projectId };
-}
-
-export async function saveSettings(settings) {
-  await openDB();
-  return promReq(tx('settings', 'readwrite').put(settings));
-}
-
-// ── Blob ↔ URL helpers ───────────────────────────────────────
-
-export function blobToURL(blob) {
-  if (!blob) return null;
-  return URL.createObjectURL(blob);
-}
-
-export function dataURLtoBlob(dataURL) {
-  const [header, data] = dataURL.split(',');
-  const mime = header.match(/:(.*?);/)[1];
-  const bytes = atob(data);
-  const buf = new Uint8Array(bytes.length);
-  for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
-  return new Blob([buf], { type: mime });
-}
-
-export function canvasToBlob(canvas, quality = 0.88) {
-  return new Promise(resolve =>
-    canvas.toBlob(resolve, 'image/jpeg', quality)
-  );
-}
-
-// === crop.js ===
-/**
- * crop.js — Image capture & Cropper.js integration
- * All image processing happens inside the browser via Canvas API.
- */
-
-import { canvasToBlob } from './db.js';
-
-let cropperInstance = null;
-
-/**
- * Initialise Cropper.js on an <img> element.
- * Cropper.js is loaded from CDN (can be self-hosted for offline-first).
- */
-export function initCropper(imgEl, options = {}) {
-  destroyCropper();
-  cropperInstance = new Cropper(imgEl, {
-    viewMode: 2,
-    autoCropArea: 1,
-    movable: true,
-    zoomable: true,
-    rotatable: true,
-    scalable: false,
-    responsive: true,
-    background: false,
-    guides: true,
-    center: true,
-    highlight: false,
-    dragMode: 'move',
-    ...options,
-  });
-  return cropperInstance;
-}
-
-export function destroyCropper() {
-  if (cropperInstance) {
-    cropperInstance.destroy();
-    cropperInstance = null;
-  }
-}
-
-export function getCropper() {
-  return cropperInstance;
-}
-
-/**
- * Extract the cropped region as a Blob (JPEG).
- * @param {number} maxDim — Max pixel dimension (to limit stored size).
- */
-export async function getCroppedBlob(maxDim = 1600) {
-  if (!cropperInstance) throw new Error('No active cropper');
-  const canvas = cropperInstance.getCroppedCanvas({
-    maxWidth:  maxDim,
-    maxHeight: maxDim,
-    fillColor: '#fff',
-    imageSmoothingEnabled: true,
-    imageSmoothingQuality: 'high',
-  });
-  return canvasToBlob(canvas, 0.88);
-}
-
-/**
- * Generate a small thumbnail Blob from the full image element.
- * Used in the question list cards.
- */
-export async function getThumbBlob(imgEl, size = 120) {
-  const canvas = document.createElement('canvas');
-  canvas.width  = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-
-  // Centre-crop to square
-  const s = Math.min(imgEl.naturalWidth, imgEl.naturalHeight);
-  const sx = (imgEl.naturalWidth  - s) / 2;
-  const sy = (imgEl.naturalHeight - s) / 2;
-  ctx.drawImage(imgEl, sx, sy, s, s, 0, 0, size, size);
-
-  return canvasToBlob(canvas, 0.75);
-}
-
-/**
- * Read a File object as a data-URL (for Cropper.js src).
- */
-export function readFileAsDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = e => resolve(e.target.result);
-    reader.onerror = () => reject(new Error('File read failed'));
-    reader.readAsDataURL(file);
-  });
-}
-
-/**
- * Rotate the active cropper ±90°.
- */
-export function rotateCropper(deg) {
-  cropperInstance?.rotate(deg);
-}
-
-/**
- * Flip the active cropper horizontally/vertically.
- */
-export function flipCropper(axis) {
-  if (!cropperInstance) return;
-  const d = cropperInstance.getData();
-  if (axis === 'h') cropperInstance.scaleX(-(d.scaleX || 1));
-  else               cropperInstance.scaleY(-(d.scaleY || 1));
-}
-
-/**
- * Reset crop box to cover the full image.
- */
-export function resetCropper() {
-  cropperInstance?.reset();
-}
-
-// === pdf.js ===
-/**
- * pdf.js — Browser-side PDF generation via jsPDF
- *
- * No server. No API. Runs 100% in the user's browser.
- * jsPDF is loaded from CDN at runtime.
- */
-
-import { blobToURL } from './db.js';
-
-/**
- * Generate and download a PDF for a project's questions.
- *
- * @param {Object} project   - { id, name, ... }
- * @param {Array}  questions - [{ id, text, croppedBlob, ... }]
- * @param {Object} settings  - PDF settings from IndexedDB
- */
-export async function generatePDF(project, questions, settings) {
-  const { jsPDF } = window.jspdf;
-
-  const isPortrait = settings.orientation !== 'landscape';
-  const pageSize   = settings.pageSize || 'A4';
-  const margin     = Number(settings.marginMm) || 15;
-  const fontSize   = Number(settings.fontSize) || 12;
-
-  const doc = new jsPDF({
-    orientation: isPortrait ? 'p' : 'l',
-    unit:        'mm',
-    format:      pageSize.toLowerCase(),
-  });
-
-  const PAGE_W = doc.internal.pageSize.getWidth();
-  const PAGE_H = doc.internal.pageSize.getHeight();
-  const usableW = PAGE_W - margin * 2;
-
-  // ── Line-spacing multiplier ──────────────────────────────
-  const lineGaps = { compact: 5, normal: 7, spacious: 10 };
-  const lineGap  = lineGaps[settings.lineSpacing] || 7;
-
-  // ── Fonts / sizes ────────────────────────────────────────
-  const headerFontSize = Math.min(fontSize + 2, 16);
-  const bodyFontSize   = fontSize;
-  const metaFontSize   = Math.max(fontSize - 2, 8);
-
-  let yPos = margin;
-
-  // ── Optional header ──────────────────────────────────────
-  if (settings.headerText?.trim()) {
-    doc.setFontSize(metaFontSize);
-    doc.setTextColor(120, 120, 120);
-    doc.text(settings.headerText.trim(), margin, yPos, { align: 'left' });
-    doc.text(`${new Date().toLocaleDateString()}`, PAGE_W - margin, yPos, { align: 'right' });
-    yPos += 5;
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, PAGE_W - margin, yPos);
-    yPos += 8;
-  }
-
-  // ── Project title ────────────────────────────────────────
-  doc.setFontSize(headerFontSize);
-  doc.setTextColor(30, 30, 30);
-  doc.setFont('helvetica', 'bold');
-  doc.text(project.name || 'Untitled Project', margin, yPos);
-  yPos += headerFontSize * 0.5 + 2;
-
-  doc.setFontSize(metaFontSize);
-  doc.setTextColor(130, 130, 130);
-  doc.setFont('helvetica', 'normal');
-  doc.text(
-    `${questions.length} question${questions.length !== 1 ? 's' : ''}  ·  Generated ${new Date().toLocaleDateString()}`,
-    margin, yPos
-  );
-  yPos += 10;
-
-  doc.setDrawColor(180, 180, 180);
-  doc.line(margin, yPos, PAGE_W - margin, yPos);
-  yPos += 8;
-
-  // ── Questions loop ────────────────────────────────────────
-  for (let i = 0; i < questions.length; i++) {
-    const q       = questions[i];
-    const qNum    = settings.showNumbers ? `${i + 1}.  ` : '';
-    const qText   = q.text || '(no text)';
-    const fullText = qNum + qText;
-
-    doc.setFontSize(bodyFontSize);
-    doc.setTextColor(30, 30, 30);
-    doc.setFont('helvetica', 'normal');
-
-    // Wrap text to usable width
-    const lines = doc.splitTextToSize(fullText, usableW);
-    const textH = lines.length * (bodyFontSize * 0.35 + 1.5);
-
-    // Image dimensions
-    let imgW = 0, imgH = 0;
-    if (settings.includeImages && q.croppedBlob) {
-      const imgSizes = { small: 35, medium: 55, large: 75, full: usableW };
-      imgW = imgSizes[settings.imageSize] || 55;
-      imgH = imgW; // will be adjusted after loading
-    }
-
-    // Estimate row height
-    const answerH = settings.showAnswerLines
-      ? (Number(settings.answerLines) || 3) * lineGap + 4
-      : 0;
-
-    const rowH = Math.max(textH + answerH + 6, imgH + 6);
-
-    // Page break?
-    if (yPos + rowH > PAGE_H - margin - 10) {
-      doc.addPage();
-      yPos = margin;
-    }
-
-    const rowStartY = yPos;
-
-    // ── Image (if any) ──────────────────────────────────
-    if (settings.includeImages && q.croppedBlob) {
-      try {
-        const dataURL = await blobToDataURL(q.croppedBlob);
-        const imgInfo = await getImageDimensions(dataURL);
-        const aspect  = imgInfo.height / imgInfo.width;
-        imgH = imgW * aspect;
-
-        const imgX = PAGE_W - margin - imgW;
-        doc.addImage(dataURL, 'JPEG', imgX, yPos, imgW, imgH);
-      } catch (err) {
-        console.warn('Failed to embed image for question', i + 1, err);
-      }
-    }
-
-    // ── Question text ────────────────────────────────────
-    const textAreaW = settings.includeImages && q.croppedBlob
-      ? usableW - imgW - 6
-      : usableW;
-
-    const wrappedLines = doc.splitTextToSize(fullText, textAreaW);
-    doc.setFontSize(bodyFontSize);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 30, 30);
-    doc.text(wrappedLines, margin, yPos + bodyFontSize * 0.35);
-
-    const textBottom = yPos + wrappedLines.length * (bodyFontSize * 0.35 + 1.5);
-    yPos = textBottom + 3;
-
-    // ── Answer lines ─────────────────────────────────────
-    if (settings.showAnswerLines) {
-      const numLines = Number(settings.answerLines) || 3;
-      doc.setDrawColor(210, 210, 210);
-      for (let l = 0; l < numLines; l++) {
-        const lineY = yPos + l * lineGap;
-        doc.line(margin + 4, lineY, margin + textAreaW - 4, lineY);
-      }
-      yPos += numLines * lineGap + 2;
-    }
-
-    // Ensure yPos is at least below image
-    const rowEndY = rowStartY + Math.max(imgH || 0, yPos - rowStartY);
-    yPos = Math.max(yPos, rowEndY);
-
-    // Question separator
-    if (i < questions.length - 1) {
-      yPos += 4;
-      doc.setDrawColor(235, 235, 235);
-      doc.line(margin, yPos, PAGE_W - margin, yPos);
-      yPos += 6;
-    } else {
-      yPos += 8;
-    }
-  }
-
-  // ── Optional footer ──────────────────────────────────────
-  const totalPages = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    doc.setFontSize(metaFontSize - 1);
-    doc.setTextColor(170, 170, 170);
-
-    if (settings.footerText?.trim()) {
-      doc.text(settings.footerText.trim(), margin, PAGE_H - 8);
-    }
-
-    doc.text(`${p} / ${totalPages}`, PAGE_W - margin, PAGE_H - 8, { align: 'right' });
-  }
-
-  // ── Download ─────────────────────────────────────────────
-  const fileName = `${slugify(project.name || 'export')}_${datestamp()}.pdf`;
-  doc.save(fileName);
-
-  return fileName;
-}
-
-// ── Helpers ───────────────────────────────────────────────────
-
-function blobToDataURL(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload  = e => resolve(e.target.result);
-    reader.onerror = () => reject(new Error('Blob read failed'));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function getImageDimensions(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload  = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => reject(new Error('Image load failed'));
-    img.src = src;
-  });
-}
-
-function slugify(str) {
-  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-}
-
-function datestamp() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/**
- * app.js — Main application controller
- *
- * 100% client-side. No backend. No authentication.
- * Data stored in IndexedDB. Images never leave the device.
- */
-
-import {
-  openDB,
-  saveProject, getProject, getAllProjects, deleteProject,
-  saveQuestion, getQuestion, getQuestionsForProject, deleteQuestion, reorderQuestions,
-  getSettings, saveSettings,
-  blobToURL, dataURLtoBlob,
-} from './db.js';
-
-import {
-  initCropper, destroyCropper, getCroppedBlob, getThumbBlob,
-  readFileAsDataURL, rotateCropper, flipCropper, resetCropper,
-} from './crop.js';
-
-
-
-// ── State ─────────────────────────────────────────────────────
-const state = {
-  currentProjectId: null,
-  editingQuestionId: null,
-  activeCropDataURL: null,
-  sortable: null,
-  objectURLs: [], // tracked for revocation
-};
-
-// ── DOM refs ──────────────────────────────────────────────────
-const $ = id => document.getElementById(id);
-const screen = name => {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  $(`screen-${name}`).classList.add('active');
-  document.querySelectorAll('.nav-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.screen === name);
-  });
-};
-
-// ── Boot ──────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
-  await openDB();
-  setupNav();
-  setupHomeScreen();
-  setupCaptureScreen();
-  setupQuestionsScreen();
-  setupPdfScreen();
-  showHomeScreen();
-
-  // Go-home event from header back button
-  document.getElementById('app').addEventListener('gohome', () => showHomeScreen());
-  window._goHome = () => showHomeScreen();
-});
-
-// ── Navigation ────────────────────────────────────────────────
-function setupNav() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = btn.dataset.screen;
-      if (!target) return;
-      if ((target === 'capture' || target === 'questions' || target === 'pdf') && !state.currentProjectId) {
-        showToast('Open or create a project first', 'info');
-        return;
-      }
-      screen(target);
-      if (target === 'questions') renderQuestionsList();
-      if (target === 'pdf') renderPdfScreen();
-      if (target === 'capture') resetCaptureScreen();
-    });
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-// HOME SCREEN
-// ════════════════════════════════════════════════════════════════
-
-function setupHomeScreen() {
-  $('btn-new-project').addEventListener('click', () => openNewProjectModal());
-}
-
-async function showHomeScreen() {
-  screen('home');
-  await renderProjectList();
-}
-
-async function renderProjectList() {
-  const list = $('project-list');
-  const projects = await getAllProjects();
-
-  if (projects.length === 0) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
-        </svg>
-        <strong>No projects yet</strong>
-        <p>Create a new project to start scanning questions.</p>
-      </div>`;
-    return;
-  }
-
-  // Sort newest first
-  projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-
-  list.innerHTML = projects.map(p => `
-    <div class="project-card" data-id="${p.id}">
-      <div class="project-card-icon">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <polyline points="10 9 9 9 8 9"/>
-        </svg>
-      </div>
-      <div class="project-card-body">
-        <div class="project-card-name">${escHtml(p.name)}</div>
-        <div class="project-card-meta">
-          <span>${p.questionCount || 0} q${(p.questionCount || 0) !== 1 ? 's' : ''}</span>
-          <span>${relDate(p.updatedAt)}</span>
-        </div>
-      </div>
-      <svg class="project-card-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
-    </div>
-  `).join('');
-
-  list.querySelectorAll('.project-card').forEach(card => {
-    card.addEventListener('click', () => openProject(card.dataset.id));
-    card.addEventListener('contextmenu', e => {
-      e.preventDefault();
-      confirmDeleteProject(card.dataset.id);
-    });
-  });
-}
-
-function openNewProjectModal() {
-  showModal('modal-project', async () => {
-    const name = $('input-project-name').value.trim();
-    if (!name) { showToast('Enter a project name', 'error'); return false; }
-
-    const project = {
-      id: crypto.randomUUID(),
-      name,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      questionCount: 0,
-    };
-    await saveProject(project);
-    await renderProjectList();
-    await openProject(project.id);
-    return true;
-  });
-  $('input-project-name').value = '';
-  setTimeout(() => $('input-project-name').focus(), 80);
-}
-
-async function openProject(id) {
-  const project = await getProject(id);
-  if (!project) { showToast('Project not found', 'error'); return; }
-  state.currentProjectId = id;
-  $('header-project-name').textContent = project.name;
-  $('header-project-name').style.display = 'inline';
-  screen('questions');
-  renderQuestionsList();
-}
-
-async function confirmDeleteProject(id) {
-  const project = await getProject(id);
-  if (!project) return;
-  showConfirm(`Delete "${escHtml(project.name)}"? This will remove all questions and cannot be undone.`, async () => {
-    await deleteProject(id);
-    if (state.currentProjectId === id) {
-      state.currentProjectId = null;
-      $('header-project-name').style.display = 'none';
-    }
-    await renderProjectList();
-    showToast('Project deleted', 'info');
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-// QUESTIONS SCREEN
-// ════════════════════════════════════════════════════════════════
-
-function setupQuestionsScreen() {
-  $('btn-add-question').addEventListener('click', () => {
-    state.editingQuestionId = null;
-    screen('capture');
-    resetCaptureScreen();
-  });
-}
-
-async function renderQuestionsList() {
-  if (!state.currentProjectId) return;
-
-  const project   = await getProject(state.currentProjectId);
-  const questions = await getQuestionsForProject(state.currentProjectId);
-  const list      = $('questions-list');
-
-  $('questions-count').textContent = `${questions.length} question${questions.length !== 1 ? 's' : ''}`;
-
-  // Update project question count
-  if (project && project.questionCount !== questions.length) {
-    project.questionCount = questions.length;
-    await saveProject(project);
-  }
-
-  // Revoke old object URLs
-  state.objectURLs.forEach(u => URL.revokeObjectURL(u));
-  state.objectURLs.length = 0;
-
-  if (questions.length === 0) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="12"/>
-          <line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <strong>No questions yet</strong>
-        <p>Tap the + button to photograph and add your first question.</p>
-      </div>`;
-
-    if (state.sortable) { state.sortable.destroy(); state.sortable = null; }
-    return;
-  }
-
-  list.innerHTML = questions.map((q, idx) => {
-    let thumbSrc = '';
-    if (q.thumbBlob) {
-      thumbSrc = blobToURL(q.thumbBlob);
-      state.objectURLs.push(thumbSrc);
-    }
-
-    return `
-      <div class="question-item" data-id="${q.id}">
-        <span class="drag-handle" title="Drag to reorder">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="8" y1="6" x2="16" y2="6"/>
-            <line x1="8" y1="12" x2="16" y2="12"/>
-            <line x1="8" y1="18" x2="16" y2="18"/>
-          </svg>
-        </span>
-        <div class="question-body">
-          <div class="question-num">Q${idx + 1}</div>
-          <div class="question-text">${escHtml(q.text || '(no text)')}</div>
-        </div>
-        ${thumbSrc ? `<img class="question-thumb" src="${thumbSrc}" alt="Question image">` : ''}
-        <div class="question-actions">
-          <button class="btn btn-icon btn-sm" data-action="edit" data-id="${q.id}" title="Edit">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-          </button>
-          <button class="btn btn-icon btn-sm" data-action="delete" data-id="${q.id}" title="Delete">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6l-1 14H6L5 6"/>
-              <path d="M10 11v6M14 11v6"/>
-              <path d="M9 6V4h6v2"/>
-            </svg>
-          </button>
-        </div>
-      </div>`;
-  }).join('');
-
-  // Bind action buttons
-  list.querySelectorAll('[data-action="edit"]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); editQuestion(btn.dataset.id); });
-  });
-  list.querySelectorAll('[data-action="delete"]').forEach(btn => {
-    btn.addEventListener('click', e => { e.stopPropagation(); confirmDeleteQuestion(btn.dataset.id); });
-  });
-
-  // Sortable
-  if (state.sortable) { state.sortable.destroy(); state.sortable = null; }
-  if (window.Sortable) {
-    state.sortable = Sortable.create(list, {
-      handle:    '.drag-handle',
-      animation: 150,
-      ghostClass: 'sortable-ghost',
-      chosenClass: 'sortable-chosen',
-      onEnd: async () => {
-        const ids = [...list.querySelectorAll('.question-item')].map(el => el.dataset.id);
-        await reorderQuestions(state.currentProjectId, ids);
-      },
-    });
-  }
-}
-
-async function editQuestion(id) {
-  state.editingQuestionId = id;
-  const q = await getQuestion(id);
-  if (!q) return;
-  showModal('modal-question-text', async () => {
-    const text = $('input-question-text').value.trim();
-    if (!text) { showToast('Question text is required', 'error'); return false; }
-    q.text = text;
-    await saveQuestion(q);
-    await renderQuestionsList();
-    // Update project updatedAt
-    const project = await getProject(state.currentProjectId);
-    if (project) await saveProject(project);
-    return true;
-  });
-  $('input-question-text').value = q.text || '';
-  setTimeout(() => $('input-question-text').focus(), 80);
-}
-
-async function confirmDeleteQuestion(id) {
-  showConfirm('Delete this question? This cannot be undone.', async () => {
-    await deleteQuestion(id);
-    await renderQuestionsList();
-    showToast('Question deleted', 'info');
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-// CAPTURE SCREEN
-// ════════════════════════════════════════════════════════════════
-
-function setupCaptureScreen() {
-  const fileInput    = $('file-input');
-  const captureZone  = $('capture-zone');
-  const cropperWrap  = $('cropper-wrapper');
-  const cropImg      = $('crop-image');
-
-  // File input change
-  fileInput.addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (file) handleFile(file);
-    fileInput.value = '';
-  });
-
-  // Drag-and-drop on capture zone
-  captureZone.addEventListener('dragover', e => {
-    e.preventDefault();
-    captureZone.classList.add('drag-over');
-  });
-  captureZone.addEventListener('dragleave', () => captureZone.classList.remove('drag-over'));
-  captureZone.addEventListener('drop', e => {
-    e.preventDefault();
-    captureZone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) handleFile(file);
-  });
-
-  // Cropper tool buttons
-  $('btn-rotate-cw').addEventListener('click',  () => rotateCropper(90));
-  $('btn-rotate-ccw').addEventListener('click', () => rotateCropper(-90));
-  $('btn-flip-h').addEventListener('click',     () => flipCropper('h'));
-  $('btn-flip-v').addEventListener('click',     () => flipCropper('v'));
-  $('btn-crop-reset').addEventListener('click', () => resetCropper());
-
-  // Save cropped question
-  $('btn-save-crop').addEventListener('click', saveCroppedQuestion);
-
-  // Cancel back to questions
-  $('btn-cancel-crop').addEventListener('click', () => {
-    destroyCropper();
-    screen('questions');
-  });
-}
-
-async function handleFile(file) {
-  if (!file.type.startsWith('image/')) {
-    showToast('Please select an image file', 'error');
-    return;
-  }
-
-  showLoading('Loading image…');
-  try {
-    const dataURL = await readFileAsDataURL(file);
-    state.activeCropDataURL = dataURL;
-
-    const cropImg = $('crop-image');
-    cropImg.src = dataURL;
-
-    $('capture-zone').style.display  = 'none';
-    $('cropper-wrapper').style.display = 'block';
-    $('crop-controls').style.display = 'flex';
-    $('crop-save-row').style.display = 'flex';
-
-    // Wait for image to load before init Cropper
-    cropImg.onload = () => {
-      initCropper(cropImg);
-      hideLoading();
-    };
-  } catch (err) {
-    hideLoading();
-    showToast('Failed to load image', 'error');
-    console.error(err);
-  }
-}
-
-async function saveCroppedQuestion() {
-  if (!getCropper()) { showToast('Please select an image first', 'error'); return; }
-  if (!state.currentProjectId) { showToast('No active project', 'error'); return; }
-
-  // Open text input modal
-  showModal('modal-question-text', async () => {
-    const text = $('input-question-text').value.trim();
-    if (!text) { showToast('Question text is required', 'error'); return false; }
-
-    showLoading('Saving question…');
-    try {
-      const croppedBlob = await getCroppedBlob(1600);
-
-      // Thumbnail from cropper canvas
-      const canvas = getCropper().getCroppedCanvas({ maxWidth: 160, maxHeight: 160 });
-      const thumbBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.7));
-
-      const question = {
-        id:           state.editingQuestionId || crypto.randomUUID(),
-        projectId:    state.currentProjectId,
-        text,
-        croppedBlob,
-        thumbBlob,
-        createdAt:    Date.now(),
-        order:        Date.now(),
-      };
-
-      await saveQuestion(question);
-
-      // Update project meta
-      const project = await getProject(state.currentProjectId);
-      if (project) {
-        const qs = await getQuestionsForProject(state.currentProjectId);
-        project.questionCount = qs.length;
-        await saveProject(project);
-      }
-
-      destroyCropper();
-      resetCaptureScreen();
-      screen('questions');
-      await renderQuestionsList();
-      showToast('Question saved', 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Failed to save question', 'error');
-    } finally {
-      hideLoading();
-    }
-    return true;
-  });
-
-  $('input-question-text').value = '';
-  setTimeout(() => $('input-question-text').focus(), 80);
-}
-
-function resetCaptureScreen() {
-  destroyCropper();
-  state.activeCropDataURL = null;
-  $('capture-zone').style.display  = 'block';
-  $('cropper-wrapper').style.display = 'none';
-  $('crop-controls').style.display = 'none';
-  $('crop-save-row').style.display = 'none';
-  $('crop-image').src = '';
-}
-
-// ════════════════════════════════════════════════════════════════
-// PDF SCREEN
-// ════════════════════════════════════════════════════════════════
-
-function setupPdfScreen() {
-  $('btn-generate-pdf').addEventListener('click', handleGeneratePDF);
-
-  // Live-update preview on setting change
-  const settingsFields = [
-    'pdf-page-size', 'pdf-orientation', 'pdf-font-size',
-    'pdf-include-images', 'pdf-image-size', 'pdf-line-spacing',
-    'pdf-show-numbers', 'pdf-show-answers', 'pdf-answer-lines',
-    'pdf-header', 'pdf-footer', 'pdf-margin',
-  ];
-  settingsFields.forEach(id => {
-    const el = $(id);
-    if (el) el.addEventListener('change', () => { autoSavePdfSettings(); updatePdfPreview(); });
-  });
-}
-
-async function renderPdfScreen() {
-  if (!state.currentProjectId) return;
-  const settings  = await getSettings(state.currentProjectId);
-  const questions = await getQuestionsForProject(state.currentProjectId);
-
-  $('pdf-page-size').value          = settings.pageSize;
-  $('pdf-orientation').value        = settings.orientation;
-  $('pdf-font-size').value          = settings.fontSize;
-  $('pdf-include-images').checked   = settings.includeImages;
-  $('pdf-image-size').value         = settings.imageSize;
-  $('pdf-line-spacing').value       = settings.lineSpacing;
-  $('pdf-show-numbers').checked     = settings.showNumbers;
-  $('pdf-show-answers').checked     = settings.showAnswerLines;
-  $('pdf-answer-lines').value       = settings.answerLines;
-  $('pdf-header').value             = settings.headerText || '';
-  $('pdf-footer').value             = settings.footerText || '';
-  $('pdf-margin').value             = settings.marginMm;
-  $('pdf-question-count').textContent = questions.length;
-
-  updatePdfPreview();
-}
-
-function updatePdfPreview() {
-  // Simple visual preview (not a real PDF render)
-  const preview = $('pdf-preview-content');
-  const count   = parseInt($('pdf-question-count').textContent) || 0;
-  const rows    = Math.min(count, 5);
-  const showImg = $('pdf-include-images')?.checked;
-  const showAns = $('pdf-show-answers')?.checked;
-  const numAns  = parseInt($('pdf-answer-lines')?.value) || 3;
-
-  let html = `<div class="pdf-preview-title">${escHtml($('header-project-name').textContent || 'Project')}</div>`;
-  for (let i = 0; i < rows; i++) {
-    html += `
-      <div class="pdf-preview-row">
-        <div class="pdf-preview-num">${i + 1}.</div>
-        <div style="flex:1">
-          <div style="display:flex;gap:4px;align-items:flex-start">
-            <div style="flex:1">
-              <div class="pdf-preview-line"></div>
-              <div class="pdf-preview-line" style="margin-top:3px;width:70%"></div>
-            </div>
-            ${showImg ? '<div class="pdf-preview-img-box"></div>' : ''}
-          </div>
-          ${showAns ? Array.from({length: numAns}).map(() => `<div class="pdf-preview-line" style="margin-top:5px;background:#f0f0f0"></div>`).join('') : ''}
-        </div>
-      </div>`;
-  }
-  if (count > 5) html += `<div style="text-align:center;font-size:7px;color:#bbb;padding-top:4px">+ ${count - 5} more</div>`;
-
-  preview.innerHTML = html;
-}
-
-async function autoSavePdfSettings() {
-  if (!state.currentProjectId) return;
-  const settings = await collectPdfSettings();
-  await saveSettings(settings);
-}
-
-async function collectPdfSettings() {
-  const base = await getSettings(state.currentProjectId);
-  return {
-    ...base,
-    projectId:       state.currentProjectId,
-    pageSize:        $('pdf-page-size').value,
-    orientation:     $('pdf-orientation').value,
-    fontSize:        parseInt($('pdf-font-size').value),
-    includeImages:   $('pdf-include-images').checked,
-    imageSize:       $('pdf-image-size').value,
-    lineSpacing:     $('pdf-line-spacing').value,
-    showNumbers:     $('pdf-show-numbers').checked,
-    showAnswerLines: $('pdf-show-answers').checked,
-    answerLines:     parseInt($('pdf-answer-lines').value),
-    headerText:      $('pdf-header').value,
-    footerText:      $('pdf-footer').value,
-    marginMm:        parseInt($('pdf-margin').value),
-  };
-}
-
-async function handleGeneratePDF() {
-  if (!state.currentProjectId) { showToast('No active project', 'error'); return; }
-
-  const project   = await getProject(state.currentProjectId);
-  const questions = await getQuestionsForProject(state.currentProjectId);
-
-  if (questions.length === 0) {
-    showToast('No questions to export', 'info');
-    return;
-  }
-
-  const settings = await collectPdfSettings();
-  await saveSettings(settings);
-
-  showLoading('Generating PDF…');
-  try {
-    const filename = await generatePDF(project, questions, settings);
-    showToast(`PDF saved: ${filename}`, 'success');
-  } catch (err) {
-    console.error(err);
-    showToast('PDF generation failed', 'error');
-  } finally {
-    hideLoading();
-  }
-}
-
-// ════════════════════════════════════════════════════════════════
-// MODALS
-// ════════════════════════════════════════════════════════════════
-
-let _modalCallback = null;
-
-function showModal(id, onConfirm) {
-  _modalCallback = onConfirm;
-  const overlay = document.querySelector(`#${id}`);
-  overlay.classList.add('open');
-}
-
-function closeModal(id) {
-  const overlay = document.querySelector(`#${id}`);
-  overlay.classList.remove('open');
-  _modalCallback = null;
-}
-
-document.addEventListener('click', async e => {
-  const confirmBtn = e.target.closest('[data-modal-confirm]');
-  const closeBtn   = e.target.closest('[data-modal-close]');
-  const overlay    = e.target.closest('.modal-overlay');
-
-  if (confirmBtn) {
-    const modalId = confirmBtn.dataset.modalConfirm;
-    if (_modalCallback) {
-      const ok = await _modalCallback();
-      if (ok !== false) closeModal(modalId);
-    }
-  }
-
-  if (closeBtn) {
-    closeModal(closeBtn.dataset.modalClose);
-  }
-
-  // Click outside modal to close
-  if (overlay && e.target === overlay) {
-    closeModal(overlay.id);
-  }
-});
-
-// ── Confirm dialog ────────────────────────────────────────────
-function showConfirm(message, onConfirm) {
-  $('confirm-message').textContent = message;
-  showModal('modal-confirm', async () => {
-    await onConfirm();
-    return true;
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-// TOAST
-// ════════════════════════════════════════════════════════════════
-
-function showToast(message, type = 'info', duration = 3000) {
-  const container = $('toast-container');
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-
-  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'i';
-  toast.innerHTML = `<span style="font-weight:600;color:${type === 'success' ? 'var(--teal)' : type === 'error' ? 'var(--danger)' : 'var(--amber)'}">${icon}</span> ${escHtml(message)}`;
-
-  container.appendChild(toast);
-
-  setTimeout(() => {
-    toast.style.transition = 'opacity 300ms ease';
-    toast.style.opacity    = '0';
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
-}
-
-// ════════════════════════════════════════════════════════════════
-// LOADING
-// ════════════════════════════════════════════════════════════════
-
-let _loadingEl = null;
-
-function showLoading(message = 'Please wait…') {
-  if (_loadingEl) return;
-  _loadingEl = document.createElement('div');
-  _loadingEl.className = 'loading-overlay';
-  _loadingEl.innerHTML = `<div class="spinner"></div><div>${escHtml(message)}</div>`;
-  document.body.appendChild(_loadingEl);
-}
-
-function hideLoading() {
-  if (_loadingEl) { _loadingEl.remove(); _loadingEl = null; }
-}
-
-// ════════════════════════════════════════════════════════════════
-// UTILS
-// ════════════════════════════════════════════════════════════════
-
-function escHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function relDate(ts) {
-  if (!ts) return '';
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1)   return 'just now';
-  if (m < 60)  return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24)  return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30)  return `${d}d ago`;
-  return new Date(ts).toLocaleDateString();
-}
-</script>
-
+<!-- ── Service Worker registration ──────────────────────── -->
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      // SW only works when served as separate file — skip in single-file mode
-      console.log('[DocScanner] Single-file mode: ServiceWorker skipped');
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(reg => console.log('[SW] Registered:', reg.scope))
+        .catch(err => console.warn('[SW] Registration failed:', err));
     });
   }
+
+  // Back button from project → home
+  document.getElementById('btn-home-logo-back').addEventListener('click', () => {
+    // navigate to home without import — handled after module load
+    window._goHome?.();
+  });
+  document.getElementById('btn-home-logo').addEventListener('click', () => {
+    window._goHome?.();
+  });
 </script>
+
+<!-- ── Expose goHome to non-module context ────────────────
+     The module sets window._goHome after DOMContentLoaded  -->
+<script type="module">
+  import { openDB } from './js/db.js';
+  // expose showHomeScreen globally so the inline script above can call it
+  document.addEventListener('DOMContentLoaded', () => {
+    // patch: expose go-home via a custom event instead
+    document.getElementById('btn-home-logo-back').addEventListener('click', () => {
+      document.getElementById('app').dispatchEvent(new CustomEvent('gohome'));
+    });
+  });
+</script>
+
 </body>
 </html>
